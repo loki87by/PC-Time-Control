@@ -1,0 +1,30 @@
+{
+  "name": "pc-time-control",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "PC time control with remote management",
+  "main": "index.js",
+  "imports": {
+    "#config": "./src/setup/config.js",
+    "#web/*": "./src/web/*.js",
+    "#utils/*": "./src/utils/*.js",
+    "#consts": "./src/utils/consts.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "install-service": "node installer.js",
+    "uninstall-service": "node installer.js uninstall"
+  },
+  "dependencies": {
+    "net": "^1.0.2",
+    "node-windows": "^1.0.0-beta.8",
+    "os": "^0.1.2",
+    "winston": "^3.11.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@qiudaomao/node-frp": "^1.1.5"
+  }
+}
