@@ -1,0 +1,222 @@
+# PC Time Control
+
+Управление временем использования компьютера с удаленным контролем.
+За основу взят код из [репозитория](https://github.com/rookie7799/kid-pc-monitor/tree/main), переведен на JS и доработан.
+Всё текстовое содержимое вынесено в один файл src/utils/consts для удобства настройки под себя или перевода на другие языки.
+
+## Установка
+
+* Установите Node.js (версия 16+)
+* Клонируйте репозиторий
+* Установите зависимости:
+
+```bash
+npm install
+```
+
+* Ручной запуск
+
+```bash
+npm start
+```
+
+* Установка как службы Windows (автозагрузка)
+
+```bash
+npm run install-service
+```
+
+## Управление службой
+
+* Запуск службы
+
+```bash
+net start PCTimeControl
+```
+
+* Остановка службы
+
+```bash
+net stop PCTimeControl
+```
+
+* Удаление службы
+
+```bash
+npm run uninstall-service
+```
+
+## Настройка
+
+Отредактируйте config.js для указания:
+
+* Каких пользователей мониторить
+* Каких исключить
+* Порт сервера
+* Интервалы предупреждений
+
+## ✅ Особенности
+
+* Полная автозагрузка — через Windows Service (запускается до входа пользователя)
+* Резервная автозагрузка — через ярлык в Startup (на случай, если служба не работает)
+* Удаленное управление — через TCP сокет
+* Логирование — все действия записываются в файл
+* Сохраняет состояние — лимиты и расписание сохраняются между перезагрузками
+* Предупреждения — показывает уведомления за 15, 5 и 1 минуту до блокировки
+
+## 🛠️ Устранение проблем
+
+* Если служба не устанавливается:
+
+1. Запустите консоль от имени администратора
+2. Проверьте, что Node.js установлен и доступен в PATH
+3. Временно отключите антивирус
+
+* Если не работает удаленное управление:
+
+1. Проверьте брандмауэр Windows
+2. Добавьте исключение для порта 9999
+3. Используйте netstat -an | find "9999" для проверки
+
+## Удаленное управление
+
+### telnet или аналоги
+
+Запрос на порт 9999
+Допустимые команды:
+
+* LOCK                    - Заблокировать ПК
+* SHUTDOWN                - Выключить ПК через минуту
+* SHUTDOWN_NOW            - Выключить ПК через 10 секунд
+* CANCEL_SHUTDOWN         - Отмена отложенного выключения
+* GET_NAME                - Получить имя ПК
+* GET_CURRENT_USER        - Получить имя текущего пользователя
+* GET_STATUS              - Проверка блокировки ПК
+* GET_USAGE_LIMIT         - Получить текущий лимит использования
+* GET_LOCK_TIMES          - Получить время отложенной блокировки
+* GET_TIME_REMAINING      - Получить время до блокировки
+* GET_USAGE_TIME          - Получить время использования
+* MESSAGE:<-text->        - Отправить сообщение
+* SET_LIMIT:<-minutes->   - Установить лимит использования
+* ADD_LOCK_TIME:HH:MM     - Добавить отложенную блокировку
+* EXTEND_TIME:<-minutes-> - Увеличить время использования
+* CLEAR_USAGE_LIMIT       - Удалить лимит
+* CLEAR_LOCK_TIMES        - Удалить отложенные блокировки
+* CLEAR_ALL               - Удалить все лимиты и отложенные действия
+* HELP                    - Получить список доступных команд
+
+### Локальная сеть
+
+Ввести в адресную строку в браузере айпишник компа на порту 5000
+
+### Внешняя сеть (необходим сервер)
+
+* Установите пакет глобально на вашем публичном сервере (локально уже есть)
+
+```bash
+npm install -g @qiudaomao/node-frp
+```
+
+* Создайте конфигурационный файл для сервера, например frps.yaml, со следующим содержанием:
+
+```yaml
+bindPort: 7000
+databasePath: ./frp.db
+trafficFlushInterval: 30
+webUI:
+  enabled: true
+  port: 8080
+  host: "0.0.0.0"
+  username: admin
+  password: your-strong-password
+```
+
+* Откройте порты
+
+```bash
+# Для систем с iptables (часто на старых серверах)
+sudo iptables -A INPUT -p tcp --dport 7000 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
+# Сохраняем правила (для Ubuntu/Debian)
+sudo netfilter-persistent save
+# Или для CentOS/RHEL
+sudo service iptables save
+
+# Для систем с ufw (Ubuntu/Debian)
+sudo ufw allow 7000/tcp
+sudo ufw allow 8080/tcp
+
+# Для систем с firewalld (CentOS/RHEL/Fedora)
+sudo firewall-cmd --add-port=7000/tcp --permanent
+sudo firewall-cmd --add-port=8080/tcp --permanent
+sudo firewall-cmd --reload
+```
+
+* Создайте файл сервиса
+
+```bash
+sudo nano /etc/systemd/system/frp-server.service
+```
+
+* Вставьте следующее содержимое
+
+```ini
+[Unit]
+Description=FRP Server (Node.js)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=<путь к конфигу>
+ExecStart=/usr/bin/node-frp server <путь к конфигу>/frps.yaml
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=frp-server
+
+[Install]
+WantedBy=multi-user.target
+```
+
+* Перезагрузите systemd и запустите сервис
+
+```bash
+# Перезагружаем systemd
+sudo systemctl daemon-reload
+# Запускаем сервис
+sudo systemctl start frp-server
+# Включаем автозапуск при загрузке системы
+sudo systemctl enable frp-server
+# Проверяем статус
+sudo systemctl status frp-server
+```
+
+* Создайте веб-клиента:
+
+1. Войдите в веб-интерфейс (http://<IP-сервера>:8080).
+2. Перейдите в раздел "Clients" -> "Add Client".
+3. Дайте клиенту имя (например, my-home-pc) и нажмите "Save".
+4. Скопируйте сгенерированный токен (он понадобится для настройки клиента) .
+5. Создайте конфигурационный файл для клиента (frpc.yaml) на вашем локальном ПК:
+
+```yaml
+serverAddr: "IP-вашего-публичного-сервера"
+serverPort: 7000
+token: "скопированный-токен-из-веб-интерфейса"
+```
+
+* Создание Проброса Порта (Port Forward)
+
+1. В веб-интерфейсе сервера перейдите в раздел "Port Forwards" -> "Add Port Forward" .
+2. Client: Выберите созданного вами клиента (my-home-pc).
+3. Name: Дайте понятное имя, например web-panel.
+4. Remote Port: Укажите порт на публичном сервере, по которому вы будете обращаться к своему приложению (например, 5555).
+5. Local IP: Оставьте 127.0.0.1.
+6. Local Port: Укажите порт 5000, или другой на котором работает ваше приложение на локальном ПК.
+7. Нажмите "Save".
+8. В разделе "Port Forwards" вы увидите статус "Active" (зеленый), что означает, что проброс работает.
+
+Теперь вы сможете получить доступ к вашему веб-интерфейсу управления ПК из любой точки мира, просто открыв в браузере адрес:
+http://<IP-вашего-публичного-сервера>:5000
