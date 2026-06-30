@@ -57,19 +57,24 @@ export const COMMON = `
     outline: none;
   }
   .alert {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
     padding: 15px;
     border-radius: 10px;
+    box-sizing: border-box;
     margin: 10px 0;
     display: none;
   }
   .alert-success {
-    background: #d4edda;
-    color: #155724;
+    background: #13e644;
+    color: #101111;
     display: block;
   }
   .alert-error {
-    background: #f8d7da;
-    color: #721c24;
+    background: #de3442;
+    color: ##f9f9f9;
     display: block;
   }
   .info-row {

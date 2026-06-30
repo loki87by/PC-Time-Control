@@ -17,12 +17,13 @@ export class RemoteControlServer {
   }
 
   logWithTime(minutes) {
-    const rounded = Math.round(minutes)
-    if (rounded < 60) return `${rounded} ${LOGS.base.minute}${getWordsWithNumsCompletion(rounded)}`
+    const rounded = Math.round(minutes);
+    if (rounded < 60)
+      return `${rounded} ${LOGS.base.minute}${getWordsWithNumsCompletion(rounded)}`;
 
-    const mins = rounded % 60
-    const hrs = (rounded - mins) / 60
-    return `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ['', 'а', 'ов'])} ${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)}`
+    const mins = rounded % 60;
+    const hrs = (rounded - mins) / 60;
+    return `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ["", "а", "ов"])} ${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)}`;
   }
 
   start() {
@@ -94,21 +95,12 @@ export class RemoteControlServer {
     });
   }
 
-  processCommand(command, socket, clientId) {
+  async processCommand(command, socket, clientId) {
     logger.info(`${LOGS.remote.command} ${clientId}: ${command}`);
     let response = "";
 
     try {
       switch (command.toUpperCase()) {
-        case "SET_SESSION_LIMIT":
-          const sessionMinutes = parseInt(command.substring(17));
-          if (isNaN(sessionMinutes) || sessionMinutes <= 0) {
-            response = `ERROR: ${LOGS.remote.invalidLimit}\n`;
-          } else {
-            this.pcControl.setSessionLimit(sessionMinutes);
-            response = `OK: ${LOGS.remote.setSessionLimit} ${this.logWithTime(sessionMinutes)}\n`;
-          }
-          break;
         case "CAN_UNLOCK":
           const canUnlock = this.pcControl.canUnlock();
           const reason = this.pcControl.getUnlockBlockReason();
@@ -117,21 +109,6 @@ export class RemoteControlServer {
         case "HANDLE_UNLOCK":
           const result = await this.pcControl.handleUnlockAttempt();
           response = `OK: ${result ? LOGS.remote.unlock_m : LOGS.remote.lock_m}\n`;
-          break;
-        case "SET_BREAK_DURATION":
-          const breakMinutes = command.substring(17).trim();
-          if (breakMinutes === "null" || breakMinutes === "") {
-            this.pcControl.setBreakDuration(null);
-            response = `OK: ${LOGS.remote.setBreakDuration} ${LOGS.remote.setBreakDurationAuto}\n`;
-          } else {
-            const minutes = parseInt(breakMinutes);
-            if (isNaN(minutes) || minutes < 0) {
-              response = `ERROR: ${LOGS.remote.setBreakDurationError}\n`;
-            } else {
-              this.pcControl.setBreakDuration(minutes);
-              response = `OK: ${LOGS.remote.setBreakDuration} ${this.logWithTime(minutes)}\n`;
-            }
-          }
           break;
         case "END_BREAK":
           if (this.pcControl.isOnBreak) {
@@ -193,7 +170,29 @@ export class RemoteControlServer {
           response = `OK: ${this.logWithTime(usageMinutes)}\n`;
           break;
         default:
-          if (command.startsWith("MESSAGE:")) {
+          if (command.startsWith("SET_SESSION_LIMIT")) {
+            const sessionMinutes = parseInt(command.substring(18).trim());
+            if (isNaN(sessionMinutes) || sessionMinutes <= 0) {
+              response = `ERROR: ${LOGS.remote.invalidLimit}\n`;
+            } else {
+              this.pcControl.setSessionLimit(sessionMinutes);
+              response = `OK: ${LOGS.remote.setSessionLimit} ${this.logWithTime(sessionMinutes)}\n`;
+            }
+          } else if (command.startsWith("SET_BREAK_DURATION")) {
+            const breakMinutes = command.substring(19).trim();
+            if (breakMinutes === "null" || breakMinutes === "") {
+              this.pcControl.setBreakDuration(null);
+              response = `OK: ${LOGS.remote.setBreakDuration} ${LOGS.remote.setBreakDurationAuto}\n`;
+            } else {
+              const minutes = parseInt(breakMinutes);
+              if (isNaN(minutes) || minutes < 0) {
+                response = `ERROR: ${LOGS.remote.setBreakDurationError}\n`;
+              } else {
+                this.pcControl.setBreakDuration(minutes);
+                response = `OK: ${LOGS.remote.setBreakDuration} ${this.logWithTime(minutes)}\n`;
+              }
+            }
+          } else if (command.startsWith("MESSAGE:")) {
             const msg = command.substring(8);
             this.pcControl.showMessage(msg);
             response = `OK: ${LOGS.user.sent.slice(2)}\n`;

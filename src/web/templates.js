@@ -73,6 +73,7 @@ export class Templates {
     const statusText = info.locked ? LOGS.user.lock : LOGS.user.unlock;
     const lockTimesDisplay =
       info.lockTimes?.length > 0 ? info.lockTimes.join(", ") : LOGS.user.absent;
+    const canUnlock = JSON.parse(info.canUnlock.split(',')[0].split('=')[1])
     const timeRemainingDisplay = info.timeRemaining && info.timeRemaining !== LOGS.user.unlimit
         ? `<div class="info-row">
           <span class="info-label">${LOGS.user.timeRemaining}</span>
@@ -83,8 +84,8 @@ export class Templates {
     const actionButtons = ` <div class="card">
           <div class="card-title">${LOGS.user.now}</div>
           <button onclick="doAction('lock')" class="btn btn-lock">${LOGS.user.lockNow}</button>
-          ${info.canUnlock ? `<button onclick="doAction('end_break')" class="btn btn-lock">${LOGS.user.endBreak}</button>` : ""}
-          ${info.canUnlock ? `<button onclick="doAction('unlock')" class="btn btn-lock">${LOGS.user.unlockNow}</button>` : ""}
+          ${canUnlock ? `<button onclick="doAction('end_break')" class="btn btn-lock">${LOGS.user.endBreak}</button>` : ""}
+          ${canUnlock ? `<button onclick="doAction('unlock')" class="btn btn-lock">${LOGS.user.unlockNow}</button>` : ""}
           <button onclick="confirmShutdown()" class="btn btn-shutdown">${LOGS.user.shutdown}</button>
         </div>
     `;
@@ -94,10 +95,10 @@ export class Templates {
         ? ` <div class="card">
           <div class="card-title">${LOGS.user.setBreak}</div>
           <div class="quick-limits">
-            <button class="quick-limit" onclick="setQuickBreak(info.sessionLimit * 1)">${this.logWithTime(info.sessionLimit)}</button>
-            <button class="quick-limit" onclick="setQuickBreak(info.sessionLimit * 2)">${this.logWithTime(info.sessionLimit * 2)}</button>
-            <button class="quick-limit" onclick="setQuickBreak(info.sessionLimit * 3)">${this.logWithTime(info.sessionLimit * 3)}</button>
-            <button class="quick-limit" onclick="setQuickBreak(info.sessionLimit * 4)">${this.logWithTime(info.sessionLimit * 4)}</button>
+            <button class="quick-limit" onclick="setQuickBreak(${info.sessionLimit})">${this.logWithTime(info.sessionLimit)}</button>
+            <button class="quick-limit" onclick="setQuickBreak(${info.sessionLimit * 2})">${this.logWithTime(info.sessionLimit * 2)}</button>
+            <button class="quick-limit" onclick="setQuickBreak(${info.sessionLimit * 3})">${this.logWithTime(info.sessionLimit * 3)}</button>
+            <button class="quick-limit" onclick="setQuickBreak(${info.sessionLimit * 4})">${this.logWithTime(info.sessionLimit * 4)}</button>
           </div>
           <input type="number" id="breakInput" placeholder='${LOGS.user.timePlaceholder}' min="1">
           <button onclick="setBreak()" class="btn btn-success">${LOGS.user.saveLimit}</button>
@@ -235,17 +236,20 @@ export class Templates {
       function confirmShutdown() {
         if (confirm('${LOGS.user.confirm}')) doAction('shutdown');
       }
-      async function apiCaller(data, successMsg) {
+      async function apiCaller(req, successMsg) {
         try {
           const response = await fetch('/api/action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify(req)
           });
           const data = await response.json();
           if (data.success) {
             showAlert(successMsg ? successMsg : '✅ ' + data.response, 'success');
             document.getElementById('messageInput').value = '';
+            if(!['message'].includes(req.action)) {
+              setTimeout(() => location.reload(), 2000);
+            }
           } else {
             showAlert('❌ ' + data.response, 'error');
           }

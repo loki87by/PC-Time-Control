@@ -546,11 +546,11 @@ export class PCTimeControl {
   canUnlock() {
     if (this.isOnBreak) {
       if (this.pendingUnlockAfterBreak) {
-        return true;
+        return false;
       }
-      return false;
+      return true;
     }
-    return true;
+    return false;
   }
 
   getUnlockBlockReason() {
