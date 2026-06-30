@@ -3,7 +3,7 @@ import os from "os";
 
 import { logger } from "#utils/logger";
 import { CONFIG } from "#config";
-import { LOGS } from "#consts";
+import { LOGS, getWordsWithNumsCompletion } from "#consts";
 
 export class RemoteControlServer {
   constructor(pcControl) {
@@ -14,6 +14,15 @@ export class RemoteControlServer {
     this.running = false;
     this.clients = new Map();
     this.clientIdCounter = 0;
+  }
+
+  logWithTime(minutes) {
+    const rounded = Math.round(minutes)
+    if (rounded < 60) return `${rounded} ${LOGS.base.minute}${getWordsWithNumsCompletion(rounded)}`
+
+    const mins = rounded % 60
+    const hrs = (rounded - mins) / 60
+    return `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ['', 'а', 'ов'])} ${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)}`
   }
 
   start() {
@@ -91,6 +100,48 @@ export class RemoteControlServer {
 
     try {
       switch (command.toUpperCase()) {
+        case "SET_SESSION_LIMIT":
+          const sessionMinutes = parseInt(command.substring(17));
+          if (isNaN(sessionMinutes) || sessionMinutes <= 0) {
+            response = `ERROR: ${LOGS.remote.invalidLimit}\n`;
+          } else {
+            this.pcControl.setSessionLimit(sessionMinutes);
+            response = `OK: ${LOGS.remote.setSessionLimit} ${this.logWithTime(sessionMinutes)}\n`;
+          }
+          break;
+        case "CAN_UNLOCK":
+          const canUnlock = this.pcControl.canUnlock();
+          const reason = this.pcControl.getUnlockBlockReason();
+          response = `OK: ${LOGS.remote.canUnlock}=${canUnlock}, ${LOGS.remote.reason}=${reason || LOGS.remote.undefined}\n`;
+          break;
+        case "HANDLE_UNLOCK":
+          const result = await this.pcControl.handleUnlockAttempt();
+          response = `OK: ${result ? LOGS.remote.unlock_m : LOGS.remote.lock_m}\n`;
+          break;
+        case "SET_BREAK_DURATION":
+          const breakMinutes = command.substring(17).trim();
+          if (breakMinutes === "null" || breakMinutes === "") {
+            this.pcControl.setBreakDuration(null);
+            response = `OK: ${LOGS.remote.setBreakDuration} ${LOGS.remote.setBreakDurationAuto}\n`;
+          } else {
+            const minutes = parseInt(breakMinutes);
+            if (isNaN(minutes) || minutes < 0) {
+              response = `ERROR: ${LOGS.remote.setBreakDurationError}\n`;
+            } else {
+              this.pcControl.setBreakDuration(minutes);
+              response = `OK: ${LOGS.remote.setBreakDuration} ${this.logWithTime(minutes)}\n`;
+            }
+          }
+          break;
+        case "END_BREAK":
+          if (this.pcControl.isOnBreak) {
+            this.pcControl.endBreak();
+            this.pcControl.isLocked = false;
+            response = `OK: ${LOGS.remote.endBreak}\n`;
+          } else {
+            response = `ERROR: ${LOGS.remote.notOnBreak}\n`;
+          }
+          break;
         case "LOCK":
           this.pcControl.lockPC();
           response = `OK: ${LOGS.remote.lock}\n`;
@@ -120,6 +171,12 @@ export class RemoteControlServer {
         case "GET_USAGE_LIMIT":
           response = `OK: ${this.pcControl.usageLimit || LOGS.remote.unlimit}\n`;
           break;
+        case "GET_SESSION_LIMIT":
+          response = `OK: ${this.pcControl.sessionLimit || LOGS.remote.unlimit}\n`;
+          break;
+        case "GET_SESSION_BREAK":
+          response = `OK: ${this.pcControl.breakDuration || LOGS.remote.unlimit}\n`;
+          break;
         case "GET_LOCK_TIMES":
           const times = this.pcControl.lockTimes.map(
             (t) =>
@@ -129,11 +186,11 @@ export class RemoteControlServer {
           break;
         case "GET_TIME_REMAINING":
           const remaining = this.pcControl.getTimeRemaining();
-          response = `OK: ${remaining !== null ? `${Math.ceil(remaining)} ${LOGS.base.minute}` : LOGS.remote.unlimit}\n`;
+          response = `OK: ${remaining !== null ? `${this.logWithTime(remaining)}` : LOGS.remote.unlimit}\n`;
           break;
         case "GET_USAGE_TIME":
           const usageMinutes = (new Date() - this.pcControl.startTime) / 60000;
-          response = `OK: ${Math.floor(usageMinutes)} ${LOGS.base.minute}}\n`;
+          response = `OK: ${this.logWithTime(usageMinutes)}\n`;
           break;
         default:
           if (command.startsWith("MESSAGE:")) {
@@ -146,7 +203,7 @@ export class RemoteControlServer {
               response = `ERROR: ${LOGS.remote.invalidLimit}\n`;
             } else {
               this.pcControl.setUsageLimit(minutes);
-              response = `OK: ${LOGS.remote.setLimit} ${minutes} ${LOGS.base.minute}\n`;
+              response = `OK: ${LOGS.remote.setLimit} ${this.logWithTime(minutes)}\n`;
             }
           } else if (command.startsWith("ADD_LOCK_TIME:")) {
             const timeStr = command.substring(14);
@@ -173,7 +230,7 @@ export class RemoteControlServer {
             } else {
               this.pcControl.usageLimit += minutes;
               this.pcControl.saveState();
-              response = `OK: ${LOGS.remote.timeExtend} ${minutes} ${LOGS.base.minute}\n`;
+              response = `OK: ${LOGS.remote.timeExtend} ${this.logWithTime(minutes)}\n`;
             }
           } else if (command === "CLEAR_USAGE_LIMIT") {
             this.pcControl.usageLimit = null;
@@ -188,6 +245,11 @@ export class RemoteControlServer {
           } else if (command === "CLEAR_ALL") {
             this.pcControl.usageLimit = null;
             this.pcControl.lockTimes = [];
+            this.pcControl.sessionLimit = null;
+            this.pcControl.breakDuration = null;
+            this.pcControl.isOnBreak = false;
+            this.pcControl.pendingUnlockAfterBreak = false;
+            this.pcControl.sessionWarningsSent.clear();
             this.pcControl.warningsSent.clear();
             this.pcControl.saveState();
             response = `OK: ${LOGS.remote.clearAll}\n`;

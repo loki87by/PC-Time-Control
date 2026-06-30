@@ -75,6 +75,11 @@ export class PCClient {
     return result.success ? result.response : null;
   }
 
+  async canUnlock() {
+    const result = await this.send("CAN_UNLOCK");
+    return result.success ? result.response : null;
+  }
+
   async getStatus() {
     const result = await this.send("GET_STATUS");
     return result.success ? result.response : "UNKNOWN";
@@ -87,6 +92,16 @@ export class PCClient {
 
   async getUsageLimit() {
     const result = await this.send("GET_USAGE_LIMIT");
+    return result.success ? parseInt(result.response) || null : null;
+  }
+
+  async getSessionLimit() {
+    const result = await this.send("GET_SESSION_LIMIT");
+    return result.success ? parseInt(result.response) || null : null;
+  }
+
+  async getSessionBreak() {
+    const result = await this.send("GET_SESSION_BREAK");
     return result.success ? parseInt(result.response) || null : null;
   }
 
@@ -109,12 +124,28 @@ export class PCClient {
     return this.send("SHUTDOWN", false);
   }
 
+  async unlock() {
+    return this.send("HANDLE_UNLOCK", false);
+  }
+
+  async endBreak() {
+    return this.send("END_BREAK", false);
+  }
+
   async sendMessage(message) {
     return this.send(`MESSAGE:${message || ""}`, false);
   }
 
   async setLimit(minutes) {
-    return this.send(`SET_LIMIT:${minutes || 120}`, false);
+    return this.send(`SET_LIMIT:${minutes || 0}`, false);
+  }
+
+  async setSessionLimit(minutes) {
+    return this.send(`SET_SESSION_LIMIT:${minutes || 0}`, false);
+  }
+
+  async setBreakDuration(minutes) {
+    return this.send(`SET_BREAK_DURATION:${minutes || 0}`, false);
   }
 
   async addLockTime(time) {

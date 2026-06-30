@@ -34,8 +34,11 @@ export class Routes {
     info.locked = (await client.getStatus()) === "LOCKED";
     info.currentUser = await client.getCurrentUser() || info.currentUser;
     info.usageLimit = await client.getUsageLimit();
+    info.sessionLimit = await client.getSessionLimit();
+    info.sessionBreak = await client.getSessionBreak();
     info.lockTimes = await client.getLockTimes();
     info.timeRemaining = await client.getTimeRemaining();
+    info.canUnlock = await client.canUnlock();
 
     const html = Templates.control(ip, info);
     this.sendHTML(res, html);
@@ -89,9 +92,13 @@ export class Routes {
     const actionMap = {
       lock: () => client.lock(),
       shutdown: () => client.shutdown(),
+      unlock: () => client.unlock(),
+      end_break: () => client.endBreak(),
       message: () => client.sendMessage(data.message),
       set_limit: () => client.setLimit(data.minutes),
+      set_session_limit: () => client.setSessionLimit(data.minutes),
       add_lock_time: () => client.addLockTime(data.time),
+      set_break_duration: () => client.setBreakDuration(data.minutes),
       clear_usage_limit: () => client.clearUsageLimit(),
       clear_lock_times: () => client.clearLockTimes(),
       clear_all: () => client.clearAll()

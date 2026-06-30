@@ -5,7 +5,7 @@ import os from "os";
 
 import { logger } from "#utils/logger";
 import { CONFIG } from "#config";
-import { LOGS, PATHS } from "#consts";
+import { LOGS, PATHS, getWordsWithNumsCompletion } from "#consts";
 
 const execPromise = promisify(exec);
 
@@ -20,6 +20,13 @@ export class PCTimeControl {
     this.monitorInterval = null;
     this.stateLoaded = false;
     this.isShuttingDown = false;
+    this.sessionLimit = null;
+    this.breakDuration = null;
+    this.sessionStartTime = null;
+    this.breakStartTime = null;
+    this.isOnBreak = false;
+    this.sessionWarningsSent = new Set();
+    this.pendingUnlockAfterBreak = false;
 
     logger.info(`${LOGS.control.init}: ${this.currentUser}`);
 
@@ -40,6 +47,15 @@ export class PCTimeControl {
         logger.error(`${LOGS.control.stateLoadError} ${err.message}`);
         this.startMonitoring();
       });
+  }
+  logWithTime(minutes) {
+    const rounded = Math.round(minutes);
+    if (rounded < 60)
+      return `${rounded} ${LOGS.base.minute}${getWordsWithNumsCompletion(rounded)}`;
+
+    const mins = rounded % 60;
+    const hrs = (rounded - mins) / 60;
+    return `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ["", "а", "ов"])} ${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)}`;
   }
 
   shouldMonitorUser() {
@@ -82,6 +98,24 @@ export class PCTimeControl {
           logger.info(LOGS.control.newDayReset);
         }
       }
+      if (state.sessionLimit !== undefined) {
+        this.sessionLimit = state.sessionLimit;
+      }
+      if (state.breakDuration !== undefined) {
+        this.breakDuration = state.breakDuration;
+      }
+      if (state.sessionStartTime) {
+        this.sessionStartTime = new Date(state.sessionStartTime);
+      }
+      if (state.breakStartTime) {
+        this.breakStartTime = new Date(state.breakStartTime);
+      }
+      if (state.isOnBreak !== undefined) {
+        this.isOnBreak = state.isOnBreak;
+      }
+      if (state.pendingUnlockAfterBreak !== undefined) {
+        this.pendingUnlockAfterBreak = state.pendingUnlockAfterBreak;
+      }
 
       logger.info(
         `${LOGS.control.stateLoaded}: ${this.lockTimes.length} ${LOGS.control.stateStats} ${this.usageLimit}`,
@@ -102,6 +136,12 @@ export class PCTimeControl {
         usageLimit: this.usageLimit,
         startTime: this.startTime.toISOString(),
         currentUser: this.currentUser,
+        sessionLimit: this.sessionLimit,
+        breakDuration: this.breakDuration,
+        sessionStartTime: this.sessionStartTime?.toISOString(),
+        breakStartTime: this.breakStartTime?.toISOString(),
+        isOnBreak: this.isOnBreak,
+        pendingUnlockAfterBreak: this.pendingUnlockAfterBreak,
       };
 
       await fs.writeFile(CONFIG.stateFile, JSON.stringify(state, null, 2));
@@ -212,7 +252,7 @@ export class PCTimeControl {
     this.startTime = new Date();
     this.warningsSent.clear();
     this.saveState();
-    logger.info(`${LOGS.control.limit}: ${minutes} ${LOGS.base.minute}`);
+    logger.info(`${LOGS.control.limit}: ${this.logWithTime(minutes)}`);
   }
 
   getTimeRemaining() {
@@ -255,11 +295,41 @@ export class PCTimeControl {
         if (this.isLocked && !actualLocked) {
           this.isLocked = false;
           logger.info(LOGS.control.unlock);
+
+          if (this.isOnBreak) {
+            const breakRemaining = this.getBreakTimeRemaining();
+            const remainingMsg =
+              breakRemaining !== null
+                ? `${LOGS.control.remain} ${this.logWithTime(breakRemaining)}`
+                : LOGS.control.isOnBreak;
+            this.showMessage(
+              `${LOGS.control.pauseNotEnd} (${remainingMsg})`,
+              LOGS.control.accessDenied,
+            );
+            logger.warn(
+              `${LOGS.control.tryBreakUnlock} ${this.logWithTime(breakRemaining)})`,
+            );
+            await this.lockPC();
+            return;
+          }
+
+          if (this.pendingUnlockAfterBreak) {
+            this.endBreak();
+            this.pendingUnlockAfterBreak = false;
+            logger.info(
+              `${LOGS.control.newSession} ${LOGS.control.afterPause}`,
+            );
+          }
         } else if (!this.isLocked && actualLocked) {
           this.isLocked = true;
           logger.info(LOGS.control.lock);
         }
-        await this.checkLimitsAndWarnings();
+        if (!this.isLocked) {
+          await this.checkLimitsAndWarnings();
+        }
+        if (this.isLocked && this.isOnBreak) {
+          await this.checkBreakEnd();
+        }
       } catch (err) {
         logger.error(`${LOGS.control.monitError} ${err.message}`);
       }
@@ -291,14 +361,21 @@ export class PCTimeControl {
       const usageMinutes = (now - this.startTime) / 60000;
       if (usageMinutes >= this.usageLimit) {
         logger.info(
-          `${LOGS.control.useLimit} ${this.usageLimit} ${LOGS.base.minute}`,
+          `${LOGS.control.useLimit} ${this.logWithTime(this.usageLimit)}`,
         );
         this.showMessage(
-          `${LOGS.control.useLimit} ${this.usageLimit} ${LOGS.base.minute}`,
+          `${LOGS.control.useLimit} ${this.logWithTime(this.usageLimit)}`,
         );
         await this.lockPC();
         return;
       }
+    }
+
+    if (!this.isOnBreak) {
+      const sessionBlocked = await this.checkSessionLimit();
+      if (sessionBlocked) return;
+    } else {
+      await this.checkBreakEnd();
     }
     const timeRemaining = this.getTimeRemaining();
 
@@ -319,6 +396,195 @@ export class PCTimeControl {
         }
       }
     }
+  }
+
+  setSessionLimit(minutes) {
+    if (minutes <= 0) throw new Error(LOGS.control.positiveSession);
+
+    this.sessionLimit = minutes;
+    this.sessionStartTime = new Date();
+    this.sessionWarningsSent.clear();
+    this.isOnBreak = false;
+    this.breakStartTime = null;
+    this.pendingUnlockAfterBreak = false;
+    this.saveState();
+    logger.info(`${LOGS.control.setSessionLimit} ${this.logWithTime(minutes)}`);
+  }
+
+  setBreakDuration(minutes) {
+    if (minutes !== null && minutes < 0) {
+      throw new Error(LOGS.control.positiveSleep);
+    }
+    this.breakDuration = minutes;
+    this.saveState();
+    logger.info(
+      `${LOGS.control.setSleepTime} ${minutes ? `${this.logWithTime(minutes)}` : LOGS.control.sleepEqualSession}`,
+    );
+  }
+
+  getEffectiveBreakDuration() {
+    return this.breakDuration !== null ? this.breakDuration : this.sessionLimit;
+  }
+
+  getSessionUsageMinutes() {
+    if (!this.sessionStartTime) return 0;
+    return (Date.now() - this.sessionStartTime.getTime()) / 60000;
+  }
+
+  getSessionTimeRemaining() {
+    if (!this.sessionLimit || !this.sessionStartTime) return null;
+    if (this.isOnBreak) return null;
+    const used = this.getSessionUsageMinutes();
+    const remaining = this.sessionLimit - used;
+    return remaining > 0 ? remaining : 0;
+  }
+
+  getBreakTimeRemaining() {
+    if (!this.isOnBreak || !this.breakStartTime) return null;
+
+    const breakDuration = this.getEffectiveBreakDuration();
+    if (!breakDuration) return null;
+
+    const elapsed = (Date.now() - this.breakStartTime.getTime()) / 60000;
+    const remaining = breakDuration - elapsed;
+    return remaining > 0 ? remaining : 0;
+  }
+
+  startBreak() {
+    this.isOnBreak = true;
+    this.breakStartTime = new Date();
+    this.pendingUnlockAfterBreak = false;
+    const breakDuration = this.getEffectiveBreakDuration();
+    const log = `${LOGS.control.sleep} ${this.logWithTime(breakDuration)}`;
+    logger.info(log);
+    this.saveState();
+    const msg = `⏸️ ${log}. ${LOGS.control.pcWillLock}`;
+    this.showMessage(msg, LOGS.control.sleep);
+  }
+
+  endBreak() {
+    if (!this.pendingUnlockAfterBreak && this.isOnBreak) return;
+
+    this.isOnBreak = false;
+    this.breakStartTime = null;
+    this.pendingUnlockAfterBreak = false;
+    this.sessionStartTime = new Date();
+    this.sessionWarningsSent.clear();
+    logger.info(LOGS.control.handleEnd);
+    this.saveState();
+    this.showMessage(
+      `🎯 ${LOGS.control.newSession}! ${this.logWithTime(this.sessionLimit)}.`,
+      LOGS.control.newSession,
+    );
+  }
+
+  async checkSessionLimit() {
+    if (!this.sessionLimit || this.isOnBreak || this.isLocked) return false;
+
+    if (!this.sessionStartTime) {
+      this.sessionStartTime = new Date();
+      this.saveState();
+      return false;
+    }
+    const remaining = this.getSessionTimeRemaining();
+
+    if (remaining !== null && remaining <= 0) {
+      const breakDuration = this.getEffectiveBreakDuration();
+      logger.info(
+        `${LOGS.control.sessionEnd} (${this.logWithTime(this.sessionLimit)})`,
+      );
+      this.showMessage(
+        `⏰ ${LOGS.control.sessionEnd}! ${LOGS.control.sleep} ${this.logWithTime(breakDuration)}.`,
+      );
+      this.startBreak();
+      await this.lockPC();
+      return true;
+    }
+
+    if (remaining !== null && remaining > 0) {
+      const warningIntervals = CONFIG.warningIntervals.slice(1);
+      for (const interval of warningIntervals) {
+        const key = `session_${interval}`;
+        if (remaining <= interval && !this.sessionWarningsSent.has(key)) {
+          this.sessionWarningsSent.add(key);
+          this.showMessage(
+            `⚠️ ${LOGS.control.toSessionEnd} ${this.logWithTime(remaining)}`,
+          );
+          logger.info(
+            `${LOGS.control.warn}: ${this.logWithTime(remaining)} ${LOGS.control.toSessionEnd}`,
+          );
+        }
+      }
+    }
+    return false;
+  }
+
+  async checkBreakEnd() {
+    if (!this.isOnBreak) return false;
+
+    const remaining = this.getBreakTimeRemaining();
+
+    if (remaining !== null && remaining <= 0) {
+      if (!this.pendingUnlockAfterBreak) {
+        this.pendingUnlockAfterBreak = true;
+        logger.info(LOGS.control.endSleepTime);
+      }
+      return true;
+    }
+
+    if (!this.isLocked && this.v) {
+      logger.warn(LOGS.control.isOnBreakDebug);
+      await this.lockPC();
+      this.showMessage(
+        `${LOGS.control.pauseNotEnd} ${LOGS.control.remain} ${this.logWithTime(remaining)}.`,
+        LOGS.control.accessDenied,
+      );
+    }
+    return false;
+  }
+
+  canUnlock() {
+    if (this.isOnBreak) {
+      if (this.pendingUnlockAfterBreak) {
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  getUnlockBlockReason() {
+    if (!this.isOnBreak) return null;
+    if (this.pendingUnlockAfterBreak) return null;
+
+    const remaining = this.getBreakTimeRemaining();
+    if (remaining !== null && remaining > 0) {
+      return `⛔ ${LOGS.control.sleep}! ${LOGS.control.remain} ${this.logWithTime(remaining)}.`;
+    }
+    return `⛔ ${LOGS.control.sleep}`;
+  }
+
+  async handleUnlockAttempt() {
+    if (!this.canUnlock()) {
+      const reason = this.getUnlockBlockReason();
+      logger.warn(`${LOGS.control.tryBreakUnlockFalse}: ${reason}`);
+
+      if (!this.isLocked) {
+        await this.lockPC();
+      }
+      this.showMessage(reason, LOGS.control.accessDenied);
+      return false;
+    }
+
+    if (this.pendingUnlockAfterBreak) {
+      this.endBreak();
+      this.pendingUnlockAfterBreak = false;
+      this.isLocked = false;
+      logger.info(`✅ ${LOGS.control.newSession} ${LOGS.control.afterPause}`);
+      this.showMessage(`🎯 ${LOGS.control.newSession}!`, LOGS.control.welcome);
+      return true;
+    }
+    return true;
   }
 
   stop() {

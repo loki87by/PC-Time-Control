@@ -22,9 +22,9 @@ export const LOGS = {
     shutdown: "\n=== Выключение родительского контроля ===",
     shutdownEnd: "Родительский контроль деактивирован",
     fatal: "Глобальная ошибка",
-    second: "сек.",
-    minute: "мин.",
-    hour: "ч.",
+    second: "секунд",
+    minute: "минут",
+    hour: "час",
     msgButtonText: "OK",
     client: "Клиент",
     usedPort: (port) => `Порт ${port} занят!`,
@@ -52,7 +52,7 @@ export const LOGS = {
     badTime: "Неправильный формат времени",
     lockTimeout: "Добавлена отложенная блокировка",
     positiveTime: "Минуты должны быть положительными",
-    limit: "Установлен лимит использования",
+    limit: "Установлен дневной лимит",
     unlock: "ПК разблокирован",
     monitError: "Ошибка мониторинга:",
     monitStart: "Мониторинг запущен",
@@ -60,6 +60,30 @@ export const LOGS = {
     useLimit: "Достигнут дневной лимит в",
     sendWarn: "Отправлено предупреждение:",
     stop: "Родительский контроль остановлен.",
+    remain: "Осталось",
+    isOnBreak: "время еще не вышло",
+    pauseNotEnd: "⛔ Перерыв еще не закончился!",
+    accessDenied: "Доступ запрещен",
+    tryBreakUnlock: "🚫 Попытка разблокировки во время перерыва (осталось",
+    tryBreakUnlockFalse: "🚫 Попытка разблокировки заблокирована",
+    newSession: "Новый сеанс начат",
+    afterPause: "после перерыва",
+    positiveSession: "Время сеанса должно быть положительным",
+    setSessionLimit: "Лимит сеанса установлен:",
+    positiveSleep: "Время перерыва не может быть отрицательным",
+    setSleepTime: "Длительность перерыва установлена:",
+    sleepEqualSession: "равна сеансу",
+    sleep: "Перерыв",
+    sessionEnd: "Сеанс завершен",
+    pcWillLock:
+      "ПК будет заблокирован. Разблокировка будет возможна после окончания перерыва.",
+    handleEnd:
+      "🔄 Перерыв завершен ручной разблокировкой, начинается новый сеанс",
+    toSessionEnd: "до конца сеанса",
+    warn: "Предупреждение",
+    endSleepTime: "✅ Перерыв завершен, ожидается ручная разблокировка ПК",
+    isOnBreakDebug: "⚠️ ПК разблокирован во время перерыва! Блокируем...",
+    welcome: "Добро пожаловать",
     lockMessageTimeout: (time) =>
       `⚠️ Компьютер будет заблокирован через ${time} минут!`,
   },
@@ -81,17 +105,31 @@ export const LOGS = {
     unlock_m: "РАЗЛОЧЕН",
     lockTimes: "Нет",
     invalidLimit: "Некорректное значение лимита",
-    setLimit: "Установлен лимит использования",
+    setLimit: "Установлен дневной лимит",
     badTime: "Некорректный формат (используйте ЧЧ:ММ)",
     addLock: "Время блокировки добавлено",
     invalidTime: "Некорректный формат времени",
     noLimitExtend: "Не установлен лимит для продления",
     timeExtend: "Лимит увеличен до",
-    clearLimit: "Лимит использования очищен",
+    clearLimit: "Дневной лимит очищен",
     clearLockTimes: "Отложенные блокировки очищены",
-    clearAll: "Лимиты и отложенные блокировки очищены",
+    clearAll: "Все лимиты и отложенные блокировки очищены",
     unknown: "Неизвестная команда (воспользуйтесь HELP)",
+    undefined: "неизвестна",
+    setSessionLimit: "Лимит сессии установлен на",
+    canUnlock: "Возможность разблокировки",
+    reason: "причина",
+    setBreakDuration: "Установлено время перерыва",
+    setBreakDurationAuto: "равное времени сессии",
+    endBreak: "Перерыв завершен, начата новая сессия.",
+    notOnBreak: "ПК вне перерыва.",
+    setBreakDurationError: "Ошибка установки времени перерыва.",
     available: `Допустимые команды:
+      END_BREAK               - Принудительно завершить перерыв
+      SET_BREAK_DURATION      - Установить время отдыха между сессиями
+      HANDLE_UNLOCK           - Разблокировать ПК (если не задан пароль)
+      SET_SESSION_LIMIT       - Установить лимит сессии
+      CAN_UNLOCK              - Проверка возможности разблокировки
       LOCK                    - Заблокировать ПК
       SHUTDOWN                - Выключить ПК через минуту
       SHUTDOWN_NOW            - Выключить ПК через 10 секунд
@@ -99,15 +137,17 @@ export const LOGS = {
       GET_NAME                - Получить имя ПК
       GET_CURRENT_USER        - Получить имя текущего пользователя
       GET_STATUS              - Проверка блокировки ПК
-      GET_USAGE_LIMIT         - Получить текущий лимит использования
+      GET_USAGE_LIMIT         - Получить текущий дневной лимит
+      GET_SESSION_LIMIT       - Получить текущий лимит сессии
+      GET_SESSION_BREAK       - Получить время отдыха между сессиями
       GET_LOCK_TIMES          - Получить время отложенной блокировки
       GET_TIME_REMAINING      - Получить время до блокировки
       GET_USAGE_TIME          - Получить время использования
       MESSAGE:<text>          - Отправить сообщение
-      SET_LIMIT:<minutes>     - Установить лимит использования
+      SET_LIMIT:<minutes>     - Установить дневной лимит
       ADD_LOCK_TIME:HH:MM     - Добавить отложенную блокировку
       EXTEND_TIME:<minutes>   - Увеличить время использования
-      CLEAR_USAGE_LIMIT       - Удалить лимит
+      CLEAR_USAGE_LIMIT       - Удалить дневной лимит
       CLEAR_LOCK_TIMES        - Удалить отложенные блокировки
       CLEAR_ALL               - Удалить все лимиты и отложенные действия
       HELP                    - Получить список доступных команд`,
@@ -135,6 +175,8 @@ export const LOGS = {
     back: "← Назад",
     settings: "📊 Текущие настройки",
     dayLimit: "Суточный лимит",
+    sessionLimit: "Лимит сессии",
+    sessionBreak: "Отдых между сессиями",
     notSet: "не задан",
     delayLocks: "Отложенные блокировки",
     resetLimits: "🗑️ Убрать ограничения",
@@ -150,11 +192,15 @@ export const LOGS = {
       "⚠️ Точно хотите сбросить все лимиты и удалить отложенные блокировки?",
     now: "🔒 Немедленные действия",
     lockNow: "🔒 Заблокировать",
+    unlockNow: "🔓 Завершить перерыв и разблокировать",
+    endBreak: "⏯️ Завершить перерыв",
     shutdown: "⏻ Выключить",
     sendMsg: "💬 Отправить сообщение",
     messPlaceholder: "Введите текст...",
     send: "Отправить",
-    setLimit: "⏱️ Установить ограничение",
+    setLimit: "⏱️ Установить дневное ограничение",
+    setSession: "⏱️ Установить ограничение сессии",
+    setBreak: "⏱️ Установить время отдыха между сессиями",
     halfHour: "30 минут",
     hour: "1 час",
     hours: " часа",
@@ -170,8 +216,8 @@ export const LOGS = {
     scan: "Начинаю сканирование сети",
     scanEnd: "Сканирование сети завершено, найдено ПК:",
     failCon: "Ошибка соединения",
-    scanErr: 'Ошибка сканирования',
-    refreshErr: 'Ошибка обновления'
+    scanErr: "Ошибка сканирования",
+    refreshErr: "Ошибка обновления",
   },
 };
 
@@ -183,8 +229,8 @@ export const PATHS = {
     logon: 'tasklist /FI "IMAGENAME eq LogonUI.exe" /NH',
     lock: "rundll32.exe user32.dll,LockWorkStation",
     shutdownAbort: "shutdown /a",
-    getPid: 'netstat -ano | findstr',
-    cleanPort: 'taskkill /F /PID',
+    getPid: "netstat -ano | findstr",
+    cleanPort: "taskkill /F /PID",
     sendMess: (message, title, button) =>
       `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${message}', '${title}', '${button}', 'Warning')"`,
     shutdownWin: (seconds) =>
@@ -192,3 +238,16 @@ export const PATHS = {
     shutdown: (timeout) => `shutdown -h +${timeout}`,
   },
 };
+
+export function getWordsWithNumsCompletion(
+  numeral,
+  completions = ["а", "ы", ""],
+) {
+  if (!numeral || !isFinite(+numeral)) return "";
+  const divisionRemainder =
+    +numeral % 10 === 1 && +`${numeral}`.slice(`${numeral}`.length - 2) !== 11;
+  const divisionRemainder2 =
+    [2, 3, 4].includes(+numeral % 10) &&
+    +`${numeral}`.slice(`${numeral}`.length - 2, `${numeral}`.length - 1) !== 1;
+  return `${divisionRemainder ? completions[0] : divisionRemainder2 ? completions[1] : completions[2]}`;
+}
