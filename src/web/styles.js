@@ -59,8 +59,8 @@ export const COMMON = `
   .alert {
     position: fixed;
     top: 0;
-    left: 0;
-    width: 100%;
+    left: 10%;
+    width: 80%;
     padding: 15px;
     border-radius: 10px;
     box-sizing: border-box;
@@ -120,7 +120,6 @@ export const INDEX = `
     cursor: pointer;
     transition: transform 0.2s;
   }
-  .scan-btn:hover { transform: scale(1.02); }
   .scan-btn:disabled { opacity: 0.6; cursor: not-allowed; }
   .refresh-btn {
     display: block;
@@ -134,6 +133,7 @@ export const INDEX = `
     font-size: 14px;
     cursor: pointer;
   }
+  .scan-btn:hover, .refresh-btn:hover { transform: scale(1.02); }
   .pc-card {
     background: white;
     padding: 20px;
@@ -175,6 +175,8 @@ export const INDEX = `
 
 export const CONTROL = `
   .back-btn {
+    max-width: 120px;
+    max-height: 40px;
     display: inline-block;
     padding: 10px 20px;
     background: rgba(255,255,255,0.2);
@@ -183,11 +185,13 @@ export const CONTROL = `
     border-radius: 8px;
     margin-bottom: 20px;
     backdrop-filter: blur(10px);
+    grid-column: 1 / -1;
   }
   .pc-header { text-align: center; padding: 20px; }
   .pc-header h1 { color: #333; font-size: 24px; }
   .pc-header .ip { color: #999; font-size: 14px; }
   .pc-header .user { color: #666; margin-top: 5px; }
+  .user { margin-bottom: 5px; }
   .status-unlocked { background: #4CAF50; color: white; }
   .quick-limits {
     display: flex;
@@ -208,5 +212,14 @@ export const CONTROL = `
   
   @media (max-width: 480px) {
     .quick-limits { justify-content: center; }
+  }
+
+  @media (min-width: 800px) {
+    .container {
+      max-width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-gap: 10px 30px;
+    }
   }
 `;

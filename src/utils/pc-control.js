@@ -187,12 +187,12 @@ export class PCTimeControl {
       if (process.platform === "win32") {
         exec(PATHS.commands.shutdownWin(seconds));
         logger.info(
-          `${LOGS.control.shutdownTimeout} (${seconds}${LOGS.control.shutdownTimeout})`,
+          `${LOGS.control.shutdownTimeout} (${seconds}${LOGS.base.second}${getWordsWithNumsCompletion(seconds)})`,
         );
       } else {
         exec(PATHS.commands.shutdown(Math.ceil(seconds / 60)));
         logger.info(
-          `${LOGS.control.shutdownTimeout} (${seconds}${LOGS.control.shutdownTimeout})`,
+          `${LOGS.control.shutdownTimeout} (${seconds}${LOGS.base.second}${getWordsWithNumsCompletion(Math.ceil(seconds / 60))})`,
         );
       }
     } catch (err) {
@@ -298,19 +298,24 @@ export class PCTimeControl {
 
           if (this.isOnBreak) {
             const breakRemaining = this.getBreakTimeRemaining();
-            const remainingMsg =
-              breakRemaining !== null
-                ? `${LOGS.control.remain} ${this.logWithTime(breakRemaining)}`
-                : LOGS.control.isOnBreak;
-            this.showMessage(
-              `${LOGS.control.pauseNotEnd} (${remainingMsg})`,
-              LOGS.control.accessDenied,
-            );
-            logger.warn(
-              `${LOGS.control.tryBreakUnlock} ${this.logWithTime(breakRemaining)})`,
-            );
-            await this.lockPC();
-            return;
+
+            if (breakRemaining > 0) {
+              const remainingMsg =
+                breakRemaining !== null
+                  ? `${LOGS.control.remain} ${this.logWithTime(breakRemaining)}`
+                  : LOGS.control.isOnBreak;
+              this.showMessage(
+                `${LOGS.control.pauseNotEnd} (${remainingMsg})`,
+                LOGS.control.accessDenied,
+              );
+              logger.warn(
+                `${LOGS.control.tryBreakUnlock} ${this.logWithTime(breakRemaining)})`,
+              );
+              await this.lockPC();
+              return;
+            } else {
+              this.endBreak();
+            }
           }
 
           if (this.pendingUnlockAfterBreak) {
@@ -321,8 +326,8 @@ export class PCTimeControl {
             );
           }
         } else if (!this.isLocked && actualLocked) {
-          this.isLocked = true;
           logger.info(LOGS.control.lock);
+          this.isLocked = true;
         }
         if (!this.isLocked) {
           await this.checkLimitsAndWarnings();
@@ -451,15 +456,15 @@ export class PCTimeControl {
   }
 
   startBreak() {
-    this.isOnBreak = true;
-    this.breakStartTime = new Date();
-    this.pendingUnlockAfterBreak = false;
     const breakDuration = this.getEffectiveBreakDuration();
     const log = `${LOGS.control.sleep} ${this.logWithTime(breakDuration)}`;
     logger.info(log);
-    this.saveState();
     const msg = `⏸️ ${log}. ${LOGS.control.pcWillLock}`;
     this.showMessage(msg, LOGS.control.sleep);
+    this.isOnBreak = true;
+    this.breakStartTime = new Date();
+    this.pendingUnlockAfterBreak = false;
+    this.saveState();
   }
 
   endBreak() {
@@ -534,11 +539,11 @@ export class PCTimeControl {
 
     if (!this.isLocked && this.v) {
       logger.warn(LOGS.control.isOnBreakDebug);
-      await this.lockPC();
       this.showMessage(
         `${LOGS.control.pauseNotEnd} ${LOGS.control.remain} ${this.logWithTime(remaining)}.`,
         LOGS.control.accessDenied,
       );
+      await this.lockPC();
     }
     return false;
   }
@@ -568,11 +573,11 @@ export class PCTimeControl {
     if (!this.canUnlock()) {
       const reason = this.getUnlockBlockReason();
       logger.warn(`${LOGS.control.tryBreakUnlockFalse}: ${reason}`);
+      this.showMessage(reason, LOGS.control.accessDenied);
 
       if (!this.isLocked) {
         await this.lockPC();
       }
-      this.showMessage(reason, LOGS.control.accessDenied);
       return false;
     }
 

@@ -58,7 +58,7 @@ export class Templates {
         </div>
         <button id="scanBtn" class="scan-btn" onclick="scanNetwork()">${LOGS.user.find}</button>
         <button id="refreshBtn" class="refresh-btn" onclick="refreshStatus()">${LOGS.user.refresh}</button>
-        ${pcs.length > 0 ? `<h3 style="color: white; margin: 20px 0 10px;">${LOGS.user.available} ${pcs.length}</h3>` : ""}
+        ${pcs.length > 0 ? `<h3 style="color: white; margin: 20px 0 10px; text-align: center">${LOGS.user.available} ${pcs.length}</h3>` : ""}
         ${pcCards}
         <div class="footer">
             ${lastScanTime ? `${LOGS.user.last} ${lastScanTime.toLocaleTimeString()}` : LOGS.user.yet}
@@ -130,6 +130,7 @@ export class Templates {
             ${info.currentUser ? `<div class="user">👤 ${info.currentUser}</div>` : ""}
             <span class="status-badge ${statusClass}">${statusText}</span>
         </div>
+        ${this.messageSection()}
         <div class="card">
             <div class="card-title">${LOGS.user.settings}</div>
             <div class="info-row">
@@ -164,7 +165,6 @@ export class Templates {
         </div>
         <div id="alert" class="alert"></div>
         ${actionButtons}
-        ${this.messageSection()}
         ${this.limitSection()}
         ${this.sessionSection()}
         ${sessionBreak}

@@ -31,7 +31,7 @@ export class Routes {
     }
 
     const client = new PCClient(ip);
-    info.locked = (await client.getStatus()) === "LOCKED";
+    info.locked = (await client.getStatus()) === LOGS.remote.lock_m;
     info.currentUser = await client.getCurrentUser() || info.currentUser;
     info.usageLimit = await client.getUsageLimit();
     info.sessionLimit = await client.getSessionLimit();
