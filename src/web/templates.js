@@ -57,7 +57,7 @@ export class Templates {
             <p>${isServerRunning ? LOGS.user.agentsOn : LOGS.user.agentsOff}</p>
         </div>
         <button id="scanBtn" class="scan-btn" onclick="scanNetwork()">${LOGS.user.find}</button>
-        <button id="refreshBtn" class="refresh-btn" onclick="refreshStatus()">${LOGS.user.refresh}</button>
+        <button id="refreshBtn" class="refresh-btn" onclick="refreshStatus()">${LOGS.user.refreshStatus}</button>
         ${pcs.length > 0 ? `<h3 style="color: white; margin: 20px 0 10px; text-align: center">${LOGS.user.available} ${pcs.length}</h3>` : ""}
         ${pcCards}
         <div class="footer">
@@ -69,25 +69,29 @@ export class Templates {
   }
 
   static control(ip, info) {
+    console.log(info)
     const statusClass = info.locked ? "status-locked" : "status-unlocked";
     const statusText = info.locked ? LOGS.user.lock : LOGS.user.unlock;
+    const shutdownAbort = JSON.parse(info.shutdownAbort)
     const lockTimesDisplay =
       info.lockTimes?.length > 0 ? info.lockTimes.join(", ") : LOGS.user.absent;
+    const shutdownDisplay =
+      info.shutdownTime ? `${info.shutdownTime}${shutdownAbort ? ` (${LOGS.user.cancel})` : ''}` : LOGS.remote.unset;
     const canUnlock = JSON.parse(info.canUnlock.split(',')[0].split('=')[1])
     const timeRemainingDisplay = info.timeRemaining && info.timeRemaining !== LOGS.user.unlimit
-        ? `<div class="info-row">
-          <span class="info-label">${LOGS.user.timeRemaining}</span>
-          <span class="info-value">${info.timeRemaining}</span>
-        </div>`
-        : "";
+      ? `<div class="info-row">
+        <span class="info-label">${LOGS.user.timeRemaining}</span>
+        <span class="info-value">${info.timeRemaining}</span>
+      </div>`
+      : "";
 
     const actionButtons = ` <div class="card">
-          <div class="card-title">${LOGS.user.now}</div>
-          <button onclick="doAction('lock')" class="btn btn-lock">${LOGS.user.lockNow}</button>
-          ${canUnlock ? `<button onclick="doAction('end_break')" class="btn btn-lock">${LOGS.user.endBreak}</button>` : ""}
-          ${canUnlock ? `<button onclick="doAction('unlock')" class="btn btn-lock">${LOGS.user.unlockNow}</button>` : ""}
-          <button onclick="confirmShutdown()" class="btn btn-shutdown">${LOGS.user.shutdown}</button>
-        </div>
+        <div class="card-title">${LOGS.user.now}</div>
+        <button onclick="doAction('lock')" class="btn btn-lock">${LOGS.user.lockNow}</button>
+        ${canUnlock ? `<button onclick="doAction('unlock')" class="btn btn-lock">${LOGS.user.unlockNow}</button>` : ""}
+        ${canUnlock ? `<button onclick="doAction('end_break')" class="btn btn-lock">${LOGS.user.endBreak}</button>` : ""}
+        <button onclick="confirmShutdown()" class="btn btn-shutdown">${LOGS.user.shutdown}</button>
+      </div>
     `;
 
     const sessionBreak =
@@ -129,6 +133,9 @@ export class Templates {
             <div class="ip">${ip}</div>
             ${info.currentUser ? `<div class="user">👤 ${info.currentUser}</div>` : ""}
             <span class="status-badge ${statusClass}">${statusText}</span>
+            ${info.usageTime ? `<div style="margin-top: 5px;" class="ip">${LOGS.user.dailyUsage}: ${info.usageTime}</div>` : ''}
+            ${info.sessionTime ? `<div class="ip">${LOGS.user.sessionUsage}: ${info.sessionTime}</div>` : ''}
+            <button onclick="refresh()" class="btn btn-lock">${LOGS.user.refresh}</button>
         </div>
         ${this.messageSection()}
         <div class="card">
@@ -156,10 +163,14 @@ export class Templates {
                 <span class="info-label">${LOGS.user.delayLocks}</span>
                 <span class="info-value">${lockTimesDisplay}</span>
             </div>
+            <div class="info-row">
+                <span class="info-label">${LOGS.user.delayShutdown}</span>
+                <span class="info-value">${shutdownDisplay}</span>
+            </div>
             ${
               info.usageLimit || info.lockTimes?.length
                 ? `
-            <button onclick="clearAll()" class="btn btn-warning" style="margin-top: 10px;">${LOGS.user.resetLimits}</button>`
+            <button onclick="clearAll()" class="btn btn-warning">${LOGS.user.resetLimits}</button>`
                 : ""
             }
         </div>
@@ -169,6 +180,8 @@ export class Templates {
         ${this.sessionSection()}
         ${sessionBreak}
         ${this.lockTimeSection()}
+        ${this.delayShutdownSection(info.shutdownTime, shutdownAbort)}
+        ${this.killProcesses()}
     </div>
 </body>
 </html>`;
@@ -194,12 +207,6 @@ export class Templates {
         btn.textContent = '${LOGS.user.scan}';
         window.location.href = '/scan';
       }
-      function refreshStatus() {
-        const btn = document.getElementById('refreshBtn');
-        btn.disabled = true;
-        btn.textContent = '${LOGS.user.update}';
-        window.location.href = '/api/refresh';
-      }
       let autoRefreshInterval = null;
       window.onload = function() {
         autoRefreshInterval = setInterval(() => {
@@ -208,11 +215,26 @@ export class Templates {
           }).catch(() => {});
         }, 30000);
       };
+      function refreshStatus() {
+        const btn = document.getElementById('refreshBtn');
+        btn.disabled = true;
+        btn.textContent = '${LOGS.user.update}';
+        window.location.href = '/api/refresh';
+      }
     `;
   }
 
   static controlScripts(ip) {
     return `
+      function killProcesses() {
+        window.location.href = '/admin/exit';
+      }
+      function refresh() {
+        location.reload()
+      }
+      function cancelShutdown() {
+        doAction('shutdown_abort').then(() => location.reload())
+      }
       async function doAction(action) {
         try {
           const response = await fetch('/api/action', {
@@ -269,6 +291,10 @@ export class Templates {
         document.getElementById('limitInput').value = minutes;
         setLimit();
       }
+      function setQuickSession(minutes) {
+        document.getElementById('sessionInput').value = minutes;
+        setLimit(true);
+      }
       function setQuickBreak(minutes) {
         document.getElementById('breakInput').value = minutes;
         setBreak();
@@ -288,6 +314,25 @@ export class Templates {
           return;
         }
         return await apiCaller({ ip: '${ip}', action: 'set_break_duration', minutes: parseInt(minutes) })
+      }
+      async function delayedShutdown() {
+        const time = document.getElementById('shutdownTimeInput').value.split(':');
+        const now = new Date()
+        const dt = new Date()
+        dt.setHours(+time[0])
+        dt.setMinutes(+time[1])
+        const seconds = dt - now
+
+        if (!seconds) {
+          showAlert('${LOGS.user.minInput}', 'error');
+          return;
+        }
+
+        if (seconds < 0) {
+          showAlert('${LOGS.control.positiveSession}', 'error');
+          return;
+        }
+        return await apiCaller({ ip: '${ip}', action: 'delayed_shutdown', seconds: parseInt(seconds) })
       }
       async function addLockTime() {
         const time = document.getElementById('lockTimeInput').value;
@@ -334,6 +379,11 @@ export class Templates {
     return `
       <div class="card">
         <div class="card-title">${LOGS.user.setSession}</div>
+        <div class="quick-limits">
+          <button class="quick-limit" onclick="setQuickSession(10)">10${LOGS.base.minute}</button>
+          <button class="quick-limit" onclick="setQuickSession(20)">20${LOGS.base.minute}</button>
+          <button class="quick-limit" onclick="setQuickSession(30)">${LOGS.user.halfHour}</button>
+        </div>
         <input type="number" id="sessionInput" placeholder='${LOGS.user.timePlaceholder}' min="1">
         <button onclick="setLimit(true)" class="btn btn-success">${LOGS.user.saveLimit}</button>
       </div>
@@ -347,6 +397,28 @@ export class Templates {
         <input type="time" id="lockTimeInput" value="21:00">
         <button onclick="addLockTime()" class="btn btn-primary">${LOGS.user.delayLockSave}</button>
       </div>
+    `;
+  }
+
+  static delayShutdownSection(time, abort) {
+    const defVal = time && !abort ? time : '21:00'
+    const cancelBtn = `<button onclick="cancelShutdown()" class="btn btn-lock">${LOGS.user.delayShutdownAbort}</button>`
+    const condition = time && time !== LOGS.remote.unset && !abort
+    return `
+      <div class="card">
+        <div class="card-title">🕐 ${LOGS.user.delayShutdown}</div>
+        <input type="time" id="shutdownTimeInput" value=${defVal}>
+        <button onclick="delayedShutdown()" class="btn btn-shutdown">${LOGS.user.delayShutdownSave}</button>
+        ${condition ? cancelBtn : ''}        
+      </div>
+    `;
+  }
+
+  static killProcesses() {
+    return `
+      <button onclick="killProcesses()" class="card btn btn-shutdown">
+        <h1>${LOGS.user.killProcesses}</h1>
+      </button>
     `;
   }
 }

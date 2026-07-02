@@ -116,12 +116,42 @@ export class PCClient {
     return result.success ? result.response : null;
   }
 
+  async getUsageTime() {
+    const result = await this.send("GET_USAGE_TIME");
+    if (!result.success || !result.response) return null
+    
+    const int = result.response.replace(/\D/gi, '')
+    return +int ? result.response : null
+  }
+
+  async getSessionTime() {
+    const result = await this.send("GET_SESSION_TIME");
+    if (!result.success || !result.response) return null
+    
+    const int = result.response.replace(/\D/gi, '')
+    return +int ? result.response : null
+  }
+
+  async getShutdownTime() {
+    const result = await this.send("GET_SHUTDOWN_TIME");
+    return result.success ? result.response : null;
+  }
+
+  async getShutdownAbort() {
+    const result = await this.send("GET_SHUTDOWN_ABORT");
+    return result.success ? result.response : null;
+  }
+
   async lock() {
     return this.send("LOCK", false);
   }
 
   async shutdown() {
     return this.send("SHUTDOWN", false);
+  }
+
+  async shutdownAbort() {
+    return this.send("CANCEL_SHUTDOWN", false);
   }
 
   async unlock() {
@@ -146,6 +176,10 @@ export class PCClient {
 
   async setBreakDuration(minutes) {
     return this.send(`SET_BREAK_DURATION:${minutes || 0}`, false);
+  }
+
+  async delayedShutdown(seconds) {
+    return this.send(`DELAYED_SHUTDOWN:${seconds || 0}`, false);
   }
 
   async addLockTime(time) {

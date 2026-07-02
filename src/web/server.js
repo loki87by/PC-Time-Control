@@ -15,7 +15,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export class WebServer {
-  constructor(pcControl) {
+  constructor(pcControl, gracefulShutdown) {
     this.pcControl = pcControl;
     this.port = CONFIG.webPort;
     this.server = null;
@@ -27,6 +27,7 @@ export class WebServer {
       // '192.168.1.105': 'Tommy\'s Laptop',
       // '192.168.1.112': 'Sarah\'s Desktop',
     });
+    this.gracefulShutdown = gracefulShutdown
   }
 
   async start() {
@@ -72,6 +73,7 @@ export class WebServer {
         "/scan": () => this.routes.scan(req, res),
         "/api/status": () => this.routes.status(req, res),
         "/api/refresh": () => this.routes.refresh(req, res),
+        "/admin/exit": () => this.gracefulShutdown(),
       };
 
       // GET запросы

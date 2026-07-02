@@ -102,13 +102,13 @@ export class RemoteControlServer {
     try {
       switch (command.toUpperCase()) {
         case "CAN_UNLOCK":
-          const canUnlock = this.pcControl.canUnlock();
+          const isBreak = this.pcControl.isBreak();
           const reason = this.pcControl.getUnlockBlockReason();
-          response = `OK: ${LOGS.remote.canUnlock}=${canUnlock}, ${LOGS.remote.reason}=${reason || LOGS.remote.undefined}\n`;
+          response = `OK: ${LOGS.remote.isBreak}=${isBreak}, ${LOGS.remote.state}: ${reason || LOGS.remote.undefined}\n`;
           break;
         case "HANDLE_UNLOCK":
-          const result = await this.pcControl.handleUnlockAttempt();
-          response = `OK: ${result ? LOGS.remote.unlock_m : LOGS.remote.lock_m}\n`;
+          await this.pcControl.handleUnlockAttempt();
+          response = `OK: ${LOGS.remote.resetBreak}\n`;
           break;
         case "END_BREAK":
           if (this.pcControl.isOnBreak) {
@@ -169,6 +169,17 @@ export class RemoteControlServer {
           const usageMinutes = (new Date() - this.pcControl.startTime) / 60000;
           response = `OK: ${this.logWithTime(usageMinutes)}\n`;
           break;
+        case "GET_SESSION_TIME":
+          const sessionUsageMinutes = (new Date() - this.pcControl.sessionStartTime) / 60000;
+          const dailyUsageMinutes = (new Date() - this.pcControl.startTime) / 60000;
+          response = `OK: ${this.logWithTime(sessionUsageMinutes < dailyUsageMinutes ? sessionUsageMinutes : dailyUsageMinutes)}\n`;
+          break;
+        case "GET_SHUTDOWN_TIME":
+          response = `OK: ${this.pcControl.delayShutdownTime || LOGS.remote.unset}\n`;
+          break;
+        case "GET_SHUTDOWN_ABORT":
+          response = `OK: ${this.pcControl.delayShutdownCancelled}\n`;
+          break;
         default:
           if (command.startsWith("SET_SESSION_LIMIT")) {
             const sessionMinutes = parseInt(command.substring(18).trim());
@@ -177,6 +188,22 @@ export class RemoteControlServer {
             } else {
               this.pcControl.setSessionLimit(sessionMinutes);
               response = `OK: ${LOGS.remote.setSessionLimit} ${this.logWithTime(sessionMinutes)}\n`;
+            }
+          } else
+          if (command.startsWith("DELAYED_SHUTDOWN")) {
+            const delayedShutdown = parseInt(command.substring(17).trim());
+            if (isNaN(delayedShutdown) || delayedShutdown <= 0) {
+              response = `ERROR: ${LOGS.remote.invalidTime}\n`;
+            } else {
+              const seconds = delayedShutdown / 1000
+              this.pcControl.shutdownPC(seconds);
+              const delayedShutdownTime = new Date(Date.now() + delayedShutdown)
+              let hrs = delayedShutdownTime.getHours()
+              let mins = delayedShutdownTime.getMinutes()
+              hrs = `${hrs}`.length === 1 ? `0${hrs}` : `${hrs}` || '00'
+              mins = `${mins}`.length === 1 ? `0${mins}` : `${mins}` || '00'
+              this.pcControl.setShutdownTime(`${hrs}:${mins}`);
+              response = `OK: ${LOGS.remote.setDelayedShutdown} ${hrs}:${mins}\n`;
             }
           } else if (command.startsWith("SET_BREAK_DURATION")) {
             const breakMinutes = command.substring(19).trim();
@@ -250,6 +277,8 @@ export class RemoteControlServer {
             this.pcControl.pendingUnlockAfterBreak = false;
             this.pcControl.sessionWarningsSent.clear();
             this.pcControl.warningsSent.clear();
+            this.pcControl.delayShutdownTime = null
+            this.pcControl.delayShutdownCancelled = false
             this.pcControl.saveState();
             response = `OK: ${LOGS.remote.clearAll}\n`;
           } else if (command === "HELP" || command === "?") {

@@ -27,6 +27,7 @@ export const LOGS = {
     hour: "час",
     msgButtonText: "OK",
     client: "Клиент",
+    shutdownTimeout: `Компьютер будет выключен через`,
     usedPort: (port) => `Порт ${port} занят!`,
     portLog: (start, port, end) => `${start} ${port} ${end}`,
   },
@@ -97,12 +98,14 @@ export const LOGS = {
     disconnectError: "Ошибка разрыва соединения с клиентом",
     stop: "Удаленный сервер остановлен",
     unlimit: "Нет установленных лимитов",
+    unset: "Не установлено",
     lock: "ПК заблокирован",
     shutdown: "ПК выключен",
     shutdownDelay: "ПК выключится в течении 10 секунд",
     shutdownAbort: "Выключение отменено",
     lock_m: "ЗАЛОЧЕН",
     unlock_m: "РАЗЛОЧЕН",
+    resetBreak: "Перерыв завершен",
     lockTimes: "Нет",
     invalidLimit: "Некорректное значение лимита",
     setLimit: "Установлен дневной лимит",
@@ -115,15 +118,17 @@ export const LOGS = {
     clearLockTimes: "Отложенные блокировки очищены",
     clearAll: "Все лимиты и отложенные блокировки очищены",
     unknown: "Неизвестная команда (воспользуйтесь HELP)",
-    undefined: "неизвестна",
+    undefined: "неизвестно",
     setSessionLimit: "Лимит сессии установлен на",
-    canUnlock: "Возможность разблокировки",
+    isBreak: "Перерыв между сессиями",
     reason: "причина",
+    state: "состояние",
     setBreakDuration: "Установлено время перерыва",
     setBreakDurationAuto: "равное времени сессии",
     endBreak: "Перерыв завершен, начата новая сессия.",
     notOnBreak: "ПК вне перерыва.",
     setBreakDurationError: "Ошибка установки времени перерыва.",
+    setDelayedShutdown: "Установлено отложенное выключение ПК на",
     available: `Допустимые команды:
       END_BREAK               - Принудительно завершить перерыв
       SET_BREAK_DURATION      - Установить время отдыха между сессиями
@@ -135,6 +140,8 @@ export const LOGS = {
       SHUTDOWN_NOW            - Выключить ПК через 10 секунд
       CANCEL_SHUTDOWN         - Отмена отложенного выключения
       GET_NAME                - Получить имя ПК
+      GET_SESSION_TIME        - Получить время использования в текущей сессии
+      GET_USAGE_TIME          - Получить суточное время использования
       GET_CURRENT_USER        - Получить имя текущего пользователя
       GET_STATUS              - Проверка блокировки ПК
       GET_USAGE_LIMIT         - Получить текущий дневной лимит
@@ -142,7 +149,8 @@ export const LOGS = {
       GET_SESSION_BREAK       - Получить время отдыха между сессиями
       GET_LOCK_TIMES          - Получить время отложенной блокировки
       GET_TIME_REMAINING      - Получить время до блокировки
-      GET_USAGE_TIME          - Получить время использования
+      GET_SHUTDOWN_TIME       - Получить время отложенного выключения
+      GET_SHUTDOWN_ABORT      - Узнать было ли отменено запланированное отключение
       MESSAGE:<text>          - Отправить сообщение
       SET_LIMIT:<minutes>     - Установить дневной лимит
       ADD_LOCK_TIME:HH:MM     - Добавить отложенную блокировку
@@ -164,20 +172,21 @@ export const LOGS = {
     agentsOn: "🟢 Удаленные ПК доступны",
     agentsOff: "⚠️ Удаленные ПК недоступны",
     find: "🔍 Поиск устройств",
-    refresh: "🔄 Обновить статус",
+    refresh: "🔁 Обновить",
+    refreshStatus: "🔁 Обновить статус",
     available: "Доступные ПК:",
     last: "Последняя проверка:",
     yet: "Ещё не отсканировано",
     absent: "отсутствуют",
     unlimit: "Ограничения не установлены",
-    timeRemaining: "Время напоминания",
+    timeRemaining: "Время до ближайшего напоминания",
     control: "Управление",
     back: "← Назад",
     settings: "📊 Текущие настройки",
     dayLimit: "Суточный лимит",
     sessionLimit: "Лимит сессии",
     sessionBreak: "Отдых между сессиями",
-    notSet: "не задан",
+    notSet: "Не задан",
     delayLocks: "Отложенные блокировки",
     resetLimits: "🗑️ Убрать ограничения",
     scan: "🔍 Сканирую...",
@@ -192,9 +201,10 @@ export const LOGS = {
       "⚠️ Точно хотите сбросить все лимиты и удалить отложенные блокировки?",
     now: "🔒 Немедленные действия",
     lockNow: "🔒 Заблокировать",
-    unlockNow: "🔓 Завершить перерыв и разблокировать",
-    endBreak: "⏯️ Завершить перерыв",
+    unlockNow: "🔓 Завершить перерыв",
+    endBreak: "⏯️ Начать новую сессию",
     shutdown: "⏻ Выключить",
+    killProcesses: "⏻ Экстренное отключение программы (до перезагрузки)",
     sendMsg: "💬 Отправить сообщение",
     messPlaceholder: "Введите текст...",
     send: "Отправить",
@@ -207,7 +217,13 @@ export const LOGS = {
     timePlaceholder: "Или введите минуты...",
     saveLimit: "Задать ограничитель",
     delayLock: "🕐 Отложенная блокировка",
+    delayShutdown: "Отложенное выключение",
     delayLockSave: "Утвердить время блокировки",
+    delayShutdownSave: "Утвердить время выключения",
+    delayShutdownAbort: "Отменить на сегодня",
+    dailyUsage: 'Дневное использование',
+    sessionUsage: 'Текущее использование',
+    cancel: 'ОТМЕНЕНО'
   },
   web: {
     started: "Веб-сервер запущен на порту",
@@ -218,24 +234,6 @@ export const LOGS = {
     failCon: "Ошибка соединения",
     scanErr: "Ошибка сканирования",
     refreshErr: "Ошибка обновления",
-  },
-};
-
-export const PATHS = {
-  library: "node_modules/@qiudaomao/node-frp/src/cli.js",
-  config: "frpc.yaml",
-  localhost: "127.0.0.1",
-  commands: {
-    logon: 'tasklist /FI "IMAGENAME eq LogonUI.exe" /NH',
-    lock: "rundll32.exe user32.dll,LockWorkStation",
-    shutdownAbort: "shutdown /a",
-    getPid: "netstat -ano | findstr",
-    cleanPort: "taskkill /F /PID",
-    sendMess: (message, title, button) =>
-      `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${message}', '${title}', '${button}', 'Warning')"`,
-    shutdownWin: (seconds) =>
-      `shutdown /s /t ${seconds} /c "Computer will shutdown in ${seconds} seconds"`,
-    shutdown: (timeout) => `shutdown -h +${timeout}`,
   },
 };
 
@@ -251,3 +249,34 @@ export function getWordsWithNumsCompletion(
     +`${numeral}`.slice(`${numeral}`.length - 2, `${numeral}`.length - 1) !== 1;
   return `${divisionRemainder ? completions[0] : divisionRemainder2 ? completions[1] : completions[2]}`;
 }
+
+  const logWithTime = (seconds) => {
+    const rounded = Math.round(seconds);
+    const secs = rounded % 60;
+    const minutes = (rounded - secs) / 60;
+    const mins = minutes % 60;
+    const hrs = (minutes - mins) / 60;
+    const hourLog = hrs > 0 ? `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ["", "а", "ов"])} ` : ''
+    const minsLog = mins > 0 || (hrs > 0 && secs > 0) ? `${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)} ` : ''
+    const minsLog = secs > 0 ? `${secs} ${LOGS.base.second}${getWordsWithNumsCompletion(secs)}` : ''
+
+    return `${hourLog}${minsLog}${minsLog}`;
+  }
+
+export const PATHS = {
+  library: "node_modules/@qiudaomao/node-frp/src/cli.js",
+  config: "frpc.yaml",
+  localhost: "127.0.0.1",
+  commands: {
+    logon: 'tasklist /FI "IMAGENAME eq LogonUI.exe" /NH',
+    lock: "rundll32.exe user32.dll,LockWorkStation",
+    shutdownAbort: "shutdown /a",
+    getPid: "netstat -ano | findstr",
+    cleanPort: "taskkill /F /PID",
+    sendMess: (message, title, button) =>
+      `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${message}', '${title}', '${button}', 'Warning')"`,
+    shutdownWin: (seconds, mess = false) =>
+      `shutdown /s /t ${seconds} ${mess ? `/c "${LOGS.base.shutdownTimeout} ${logWithTime(seconds)}"` : ''}`,
+    shutdown: (timeout) => `shutdown -h +${timeout}`,
+  },
+};

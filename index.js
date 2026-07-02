@@ -75,7 +75,7 @@ async function main() {
       );
       process.exit(1);
     }
-    const isWebPortAvailable = await checkPort(5000);
+    const isWebPortAvailable = await checkPort(CONFIG.webPort);
 
     if (!isWebPortAvailable) {
       const log = LOGS.base.usedPort(CONFIG.webPort)
@@ -86,7 +86,7 @@ async function main() {
     await remoteServer.start();
     logger.info(LOGS.base.portLog(LOGS.base.remoteStarted, CONFIG.serverPort));
 
-    webServer = new WebServer(control);
+    webServer = new WebServer(control, gracefulShutdown);
     await webServer.start();
     startFRPClient();
 

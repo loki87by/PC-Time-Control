@@ -111,7 +111,7 @@ export const INDEX = `
     width: 100%;
     padding: 15px;
     margin: 20px 0;
-    background: linear-gradient(135deg, #eada66 0%, #cd8021 100%);
+    background: linear-gradient(135deg, #b1fbd4 0%, #2fa134 100%);
     color: white;
     border: none;
     border-radius: 10px;
@@ -126,7 +126,7 @@ export const INDEX = `
     width: 100%;
     padding: 10px;
     margin: 10px 0;
-    background: #4CAF50;
+    background: #ff9800;
     color: white;
     border: none;
     border-radius: 10px;
@@ -220,6 +220,9 @@ export const CONTROL = `
       display: grid;
       grid-template-columns: 1fr 1fr;
       grid-gap: 10px 30px;
+    }
+    .container>button {
+      grid-column: 1 / -1;
     }
   }
 `;
