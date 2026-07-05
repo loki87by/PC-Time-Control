@@ -12,8 +12,8 @@
   },
   "scripts": {
     "start": "node index.js",
-    "install-service": "node installer.js",
-    "uninstall-service": "node installer.js uninstall"
+    "install-service": "node src/setup/installer.js",
+    "uninstall-service": "node src/setup/installer.js uninstall"
   },
   "dependencies": {
     "net": "^1.0.2",

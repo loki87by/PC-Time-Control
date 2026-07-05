@@ -235,6 +235,33 @@ export const LOGS = {
     scanErr: "Ошибка сканирования",
     refreshErr: "Ошибка обновления",
   },
+  setup: {
+    init: "📦 Установка родительского контроля как службы Windows...",
+    noRoot: "❌ Скрипт должен быть запущен от имени администратора",
+    rootHint: '   Кликнуть правой кнопкой мыши по командной строке или PowerShell и выбрать "Запустить от имени администратора"',
+    serviceDescription: "Kids-monitor - служба родительского контроля",
+    success: "✅ Служба успешно установлена!",
+    name: 'Имя',
+    script: 'Путь к скрипту',
+    startScript: '📝 Для запуска запустите команду:',
+    stopScript: '📝 Для остановки запустите команду:',
+    uninstall: '📝 Для удаления запустите команду:',
+    already: "⚠️ Сервис уже установлен!",
+    uninstallHint: '   Сначала удалите командой "node installer.js uninstall"',
+    invalid: "❌ Обнаружена ошибочная установка.",
+    invalidHint: "   Попробуйте сначала удалить: node installer.js uninstall",
+    error: '❌ Ошибка установки',
+    uninstalling: "🗑️ Удаление службы родительского контроля...",
+    uninstallSuccess: "✅ Служба успешно удалена!",
+    uninstallError: '❌ Ошибка удаления службы',
+    startupInit: "📂 Добавление в автозагрузку...",
+    startupSuccess: "✅ Добавлено в автозагрузку!",
+    startupFailed: '⚠️ Не получилось добавить в автозагрузку',
+    manually: "   Вы можете попробовать добавить в папку автозагрузки вручную",
+    full: "=== Установка родительского контроля ===\n",
+    complete: "\n✅ Установка завершена!",
+    boot: "Сервис будет запускаться автоматически при загрузке системы."
+  }
 };
 
 export function getWordsWithNumsCompletion(
@@ -258,9 +285,9 @@ export function getWordsWithNumsCompletion(
     const hrs = (minutes - mins) / 60;
     const hourLog = hrs > 0 ? `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ["", "а", "ов"])} ` : ''
     const minsLog = mins > 0 || (hrs > 0 && secs > 0) ? `${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)} ` : ''
-    const minsLog = secs > 0 ? `${secs} ${LOGS.base.second}${getWordsWithNumsCompletion(secs)}` : ''
+    const secsLog = secs > 0 ? `${secs} ${LOGS.base.second}${getWordsWithNumsCompletion(secs)}` : ''
 
-    return `${hourLog}${minsLog}${minsLog}`;
+    return `${hourLog}${minsLog}${secsLog}`;
   }
 
 export const PATHS = {
