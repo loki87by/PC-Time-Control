@@ -60,6 +60,18 @@ export class PCTimeControl {
     return `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ["", "а", "ов"])} ${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)}`;
   }
 
+  resetUsedTime() {
+    this.startTime = new Date();
+    this.isLocked = false;
+    this.sessionStartTime = null;
+    this.breakStartTime = null;
+    this.isOnBreak = false;
+    this.pendingUnlockAfterBreak = false;
+    this.isLocked = false;
+    this.saveState();
+    logger.info(LOGS.control.resetStartTime);
+  }
+
   timeHandler(time) {
     if (!time) return new Date();
     const savedTime = new Date(time);
@@ -124,11 +136,11 @@ export class PCTimeControl {
       }
       if (state.delayShutdownTime !== undefined) {
         this.delayShutdownTime = state.delayShutdownTime;
-        const times = state.delayShutdownTime.split(':')
+        const times = state.delayShutdownTime.split(":");
         const delayShutdownTime = new Date();
         delayShutdownTime.setHours(+times[0], +times[1], 0, 0);
-        const delay = delayShutdownTime - new Date()
-        const seconds = delay / 1000
+        const delay = delayShutdownTime - new Date();
+        const seconds = delay / 1000;
         if (seconds > 0) this.shutdownPC(seconds, true);
       }
 
@@ -157,7 +169,7 @@ export class PCTimeControl {
         breakStartTime: this.breakStartTime?.toISOString(),
         isOnBreak: this.isOnBreak,
         pendingUnlockAfterBreak: this.pendingUnlockAfterBreak,
-        delayShutdownTime: this.delayShutdownTime
+        delayShutdownTime: this.delayShutdownTime,
       };
 
       await fs.writeFile(CONFIG.stateFile, JSON.stringify(state, null, 2));
@@ -196,15 +208,15 @@ export class PCTimeControl {
   }
 
   setShutdownTime(time) {
-    this.delayShutdownTime = time
-    this.saveState()
+    this.delayShutdownTime = time;
+    this.saveState();
   }
 
   async shutdownPC(seconds = 60, withoutReset = false) {
     try {
       if (seconds > 60) {
-        if (!withoutReset) this.cancelShutdown(false)
-        this.delayShutdownCancelled = false
+        if (!withoutReset) this.cancelShutdown(false);
+        this.delayShutdownCancelled = false;
       }
 
       if (this.isShuttingDown) return;
@@ -212,10 +224,11 @@ export class PCTimeControl {
 
       if (process.platform === "win32") {
         exec(PATHS.commands.shutdownWin(Math.round(seconds)));
-        const logTime = seconds < 60 ? `${seconds}${LOGS.base.second}${getWordsWithNumsCompletion(seconds)}` : this.logWithTime(seconds / 60)
-        logger.info(
-          `${LOGS.control.shutdownTimeout} ${logTime}`,
-        );
+        const logTime =
+          seconds < 60
+            ? `${seconds}${LOGS.base.second}${getWordsWithNumsCompletion(seconds)}`
+            : this.logWithTime(seconds / 60);
+        logger.info(`${LOGS.control.shutdownTimeout} ${logTime}`);
       } else {
         exec(PATHS.commands.shutdown(Math.ceil(seconds / 60)));
         logger.info(

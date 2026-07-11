@@ -105,6 +105,7 @@ export class Routes {
       add_lock_time: () => client.addLockTime(data.time),
       set_break_duration: () => client.setBreakDuration(data.minutes),
       delayed_shutdown: () => client.delayedShutdown(data.seconds),
+      reset_usage_time: () => client.resetUsageTime(),
       clear_usage_limit: () => client.clearUsageLimit(),
       clear_lock_times: () => client.clearLockTimes(),
       clear_all: () => client.clearAll()

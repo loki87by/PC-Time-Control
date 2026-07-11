@@ -5,7 +5,7 @@ import path from "path";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 import { Service } from "node-windows";
-import {LOGS} from '../utils/consts'
+import {LOGS} from '../utils/consts.js'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,7 +33,10 @@ function installService() {
       name: SERVICE_NAME,
       description: LOGS.setup.serviceDescription,
       script: SCRIPT_PATH,
-      nodeOptions: [`--import=${CONFIG_PATH}`, "--max-old-space-size=512"],
+      nodeOptions: [`--import=${CONFIG_PATH}`, 
+        "--max-old-space-size=512",
+        "--no-warnings",
+        "--experimental-specifier-resolution=node"],
       env: [
         {
           name: "NODE_ENV",
@@ -43,11 +46,25 @@ function installService() {
           name: "PROJECT_ROOT",
           value: PROJECT_ROOT,
         },
+        {
+            name: "NODE_PATH",
+            value: PROJECT_ROOT,
+        },
+        {
+            name: "PATH",
+            value: process.env.PATH,
+        }
       ],
       logOnAsUser: true,
       logOnAsUserAccount: process.env.USERNAME,
-      logOnAsUserPassword: null, // Использует текущую сессию
+      logOnAsUserPassword: null,
       workingDirectory: PROJECT_ROOT,
+
+      log: {
+          file: path.join(PROJECT_ROOT, 'service.log'),
+          stdout: true,
+          stderr: true,
+      }
     });
 
     // События установки
@@ -135,16 +152,16 @@ function installStartupShortcut() {
     // Используем PowerShell для создания ярлыка
     const psScript = `
 $WshShell = New-Object -comObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut("${shortcutPath}")
-$Shortcut.TargetPath = "${process.execPath}"
-$Shortcut.Arguments = "${SCRIPT_PATH}"
-$Shortcut.WorkingDirectory = "${PROJECT_ROOT}"
+$Shortcut = $WshShell.CreateShortcut('${shortcutPath}')
+$Shortcut.TargetPath = '${process.execPath}'
+$Shortcut.Arguments = '${SCRIPT_PATH}'
+$Shortcut.WorkingDirectory = '${PROJECT_ROOT}'
 $Shortcut.WindowStyle = 7
-$Shortcut.IconLocation = "${process.execPath}, 0"
+$Shortcut.IconLocation = '${process.execPath}, 0'
 $Shortcut.Save()
 `;
 
-    execSync(`powershell -Command "${psScript.replace(/"/g, '`"')}"`, {
+    execSync(`powershell -Command "& {${psScript.replace(/\r?\n/g, '; ')}}"`, {
       stdio: "ignore",
     });
     console.log(LOGS.setup.startupSuccess);

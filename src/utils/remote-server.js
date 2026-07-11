@@ -119,6 +119,10 @@ export class RemoteControlServer {
             response = `ERROR: ${LOGS.remote.notOnBreak}\n`;
           }
           break;
+        case "RESET_USAGE":
+          this.pcControl.resetUsedTime();
+          response = `OK: ${LOGS.control.resetUsedTime}\n`;
+          break;
         case "LOCK":
           this.pcControl.lockPC();
           response = `OK: ${LOGS.remote.lock}\n`;

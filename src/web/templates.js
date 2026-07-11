@@ -19,14 +19,14 @@ export class Templates {
             .map(
               ([ip, info]) => `
         <div class="pc-card" onclick="location.href='/control?ip=${ip}'">
-            <div class="pc-info">
-                <div class="pc-name">💻 ${info.hostname}</div>
-                <div class="pc-ip">${ip}</div>
-                ${info.currentUser ? `<div class="pc-user">👤 ${info.currentUser}</div>` : ""}
-            </div>
-            <span class="status-badge ${info.locked ? "status-locked" : "status-online"}">
-                ${info.locked ? LOGS.user.lock : LOGS.user.online}
-            </span>
+          <div class="pc-info">
+            <div class="pc-name">💻 ${info.hostname}</div>
+            <div class="pc-ip">${ip}</div>
+            ${info.currentUser ? `<div class="pc-user">👤 ${info.currentUser}</div>` : ""}
+          </div>
+          <span class="status-badge ${info.locked ? "status-locked" : "status-online"}">
+            ${info.locked ? LOGS.user.lock : LOGS.user.online}
+          </span>
         </div>`)
             .join("")
         : `<div class="empty-state">
@@ -38,38 +38,37 @@ export class Templates {
     return `<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${LOGS.user.title}</title>
-    <style>
-        ${COMMON}
-        ${INDEX}
-    </style>
-    <script>
-        ${this.commonScripts()}
-        ${this.indexScripts()}
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${LOGS.user.title}</title>
+  <style>
+    ${COMMON}
+    ${INDEX}
+  </style>
+  <script>
+    ${this.commonScripts()}
+    ${this.indexScripts()}
+  </script>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>👨‍👩‍👧‍👦 ${LOGS.user.title}</h1>
-            <p>${isServerRunning ? LOGS.user.agentsOn : LOGS.user.agentsOff}</p>
-        </div>
-        <button id="scanBtn" class="scan-btn" onclick="scanNetwork()">${LOGS.user.find}</button>
-        <button id="refreshBtn" class="refresh-btn" onclick="refreshStatus()">${LOGS.user.refreshStatus}</button>
-        ${pcs.length > 0 ? `<h3 style="color: white; margin: 20px 0 10px; text-align: center">${LOGS.user.available} ${pcs.length}</h3>` : ""}
-        ${pcCards}
-        <div class="footer">
-            ${lastScanTime ? `${LOGS.user.last} ${lastScanTime.toLocaleTimeString()}` : LOGS.user.yet}
-        </div>
+  <div class="container">
+    <div class="header">
+      <h1>👨‍👩‍👧‍👦 ${LOGS.user.title}</h1>
+      <p>${isServerRunning ? LOGS.user.agentsOn : LOGS.user.agentsOff}</p>
     </div>
+    <button id="scanBtn" class="scan-btn" onclick="scanNetwork()">${LOGS.user.find}</button>
+    <button id="refreshBtn" class="refresh-btn" onclick="refreshStatus()">${LOGS.user.refreshStatus}</button>
+    ${pcs.length > 0 ? `<h3 style="color: white; margin: 20px 0 10px; text-align: center">${LOGS.user.available} ${pcs.length}</h3>` : ""}
+    ${pcCards}
+    <div class="footer">
+      ${lastScanTime ? `${LOGS.user.last} ${lastScanTime.toLocaleTimeString()}` : LOGS.user.yet}
+    </div>
+  </div>
 </body>
 </html>`;
   }
 
   static control(ip, info) {
-    console.log(info)
     const statusClass = info.locked ? "status-locked" : "status-unlocked";
     const statusText = info.locked ? LOGS.user.lock : LOGS.user.unlock;
     const shutdownAbort = JSON.parse(info.shutdownAbort)
@@ -113,76 +112,77 @@ export class Templates {
     return `<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${LOGS.user.control} ${info.hostname}</title>
-    <style>
-        ${COMMON}
-        ${CONTROL}
-    </style>
-    <script>
-        ${this.commonScripts()}
-        ${this.controlScripts(ip)}
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${LOGS.user.control} ${info.hostname}</title>
+  <style>
+    ${COMMON}
+    ${CONTROL}
+  </style>
+  <script>
+    ${this.commonScripts()}
+    ${this.controlScripts(ip)}
+  </script>
 </head>
 <body>
-    <div class="container">
-        <a href="/" class="back-btn">${LOGS.user.back}</a>
-        <div class="card pc-header">
-            <h1>💻 ${info.hostname}</h1>
-            <div class="ip">${ip}</div>
-            ${info.currentUser ? `<div class="user">👤 ${info.currentUser}</div>` : ""}
-            <span class="status-badge ${statusClass}">${statusText}</span>
-            ${info.usageTime ? `<div style="margin-top: 5px;" class="ip">${LOGS.user.dailyUsage}: ${info.usageTime}</div>` : ''}
-            ${info.sessionTime ? `<div class="ip">${LOGS.user.sessionUsage}: ${info.sessionTime}</div>` : ''}
-            <button onclick="refresh()" class="btn btn-lock">${LOGS.user.refresh}</button>
-        </div>
-        ${this.messageSection()}
-        <div class="card">
-            <div class="card-title">${LOGS.user.settings}</div>
-            <div class="info-row">
-                <span class="info-label">${LOGS.user.dayLimit}</span>
-                <span class="info-value">
-                    ${info.usageLimit ? `${this.logWithTime(info.usageLimit)}` : LOGS.user.notSet}
-                </span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">${LOGS.user.sessionLimit}</span>
-                <span class="info-value">
-                    ${info.sessionLimit ? `${this.logWithTime(info.sessionLimit)}` : LOGS.user.notSet}
-                </span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">${LOGS.user.sessionBreak}</span>
-                <span class="info-value">
-                    ${info.sessionBreak ? `${this.logWithTime(info.sessionBreak)}` : LOGS.user.notSet}
-                </span>
-            </div>
-            ${timeRemainingDisplay}
-            <div class="info-row">
-                <span class="info-label">${LOGS.user.delayLocks}</span>
-                <span class="info-value">${lockTimesDisplay}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">${LOGS.user.delayShutdown}</span>
-                <span class="info-value">${shutdownDisplay}</span>
-            </div>
-            ${
-              info.usageLimit || info.lockTimes?.length
-                ? `
-            <button onclick="clearAll()" class="btn btn-warning">${LOGS.user.resetLimits}</button>`
-                : ""
-            }
-        </div>
-        <div id="alert" class="alert"></div>
-        ${actionButtons}
-        ${this.limitSection()}
-        ${this.sessionSection()}
-        ${sessionBreak}
-        ${this.lockTimeSection()}
-        ${this.delayShutdownSection(info.shutdownTime, shutdownAbort)}
-        ${this.killProcesses()}
+  <div class="container">
+    <a href="/" class="back-btn">${LOGS.user.back}</a>
+    <div class="card pc-header">
+      <h1>💻 ${info.hostname}</h1>
+      <div class="ip">${ip}</div>
+      ${info.currentUser ? `<div class="user">👤 ${info.currentUser}</div>` : ""}
+      <span class="status-badge ${statusClass}">${statusText}</span>
+      ${info.usageTime ? `<div style="margin-top: 5px;" class="ip">${LOGS.user.dailyUsage}: ${info.usageTime}</div>` : ''}
+      ${info.sessionTime ? `<div class="ip">${LOGS.user.sessionUsage}: ${info.sessionTime}</div>` : ''}
+      <button onclick="refresh()" class="btn btn-lock">${LOGS.user.refresh}</button>
+      <button onclick="resetUsageTime()" class="btn btn-warning">${LOGS.user.resetUsageTime}</button>
     </div>
+    ${this.messageSection()}
+    <div class="card">
+      <div class="card-title">${LOGS.user.settings}</div>
+      <div class="info-row">
+        <span class="info-label">${LOGS.user.dayLimit}</span>
+        <span class="info-value">
+          ${info.usageLimit ? `${this.logWithTime(info.usageLimit)}` : LOGS.user.notSet}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">${LOGS.user.sessionLimit}</span>
+        <span class="info-value">
+          ${info.sessionLimit ? `${this.logWithTime(info.sessionLimit)}` : LOGS.user.notSet}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">${LOGS.user.sessionBreak}</span>
+        <span class="info-value">
+          ${info.sessionBreak ? `${this.logWithTime(info.sessionBreak)}` : LOGS.user.notSet}
+        </span>
+      </div>
+      ${timeRemainingDisplay}
+      <div class="info-row">
+        <span class="info-label">${LOGS.user.delayLocks}</span>
+        <span class="info-value">${lockTimesDisplay}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">${LOGS.user.delayShutdown}</span>
+        <span class="info-value">${shutdownDisplay}</span>
+      </div>
+      ${
+        info.usageLimit || info.lockTimes?.length
+          ? `
+      <button onclick="clearAll()" class="btn btn-warning">${LOGS.user.resetLimits}</button>`
+          : ""
+      }
+    </div>
+    <div id="alert" class="alert"></div>
+    ${actionButtons}
+    ${this.limitSection()}
+    ${this.sessionSection()}
+    ${sessionBreak}
+    ${this.lockTimeSection()}
+    ${this.delayShutdownSection(info.shutdownTime, shutdownAbort)}
+    ${this.killProcesses()}
+  </div>
 </body>
 </html>`;
   }
@@ -341,6 +341,10 @@ export class Templates {
           return;
         }
         return await apiCaller({ ip: '${ip}', action: 'add_lock_time', time })
+      }
+      async function resetUsageTime() {
+        if (!confirm('${LOGS.user.resUsageConf}')) return;
+        return await apiCaller({ ip: '${ip}', action: 'reset_usage_time' })
       }
       async function clearAll() {
         if (!confirm('${LOGS.user.resAllConf}')) return;

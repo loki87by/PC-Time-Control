@@ -7,6 +7,18 @@ import { createRequire } from "module";
 import { spawn, execSync } from "child_process";
 import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = process.env.PROJECT_ROOT || __dirname;
+process.chdir(PROJECT_ROOT);
+
+const debugLog = path.join(process.env.PROJECT_ROOT || __dirname, 'debug-startup.log');
+fs.writeFileSync(debugLog, `[${new Date().toISOString()}] STARTING...\n`);
+fs.appendFileSync(debugLog, `PROJECT_ROOT: ${process.env.PROJECT_ROOT}\n`);
+fs.appendFileSync(debugLog, `__dirname: ${__dirname}\n`);
+fs.appendFileSync(debugLog, `process.cwd(): ${process.cwd()}\n`);
+
+
 import { WebServer } from "#web/server";
 import { CONFIG } from "#config";
 import { LOGS, PATHS } from "#consts";
@@ -14,9 +26,8 @@ import { logger } from "#utils/logger";
 import { PCTimeControl } from "#utils/pc-control";
 import { RemoteControlServer } from "#utils/remote-server";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const require = createRequire(import.meta.url);
+fs.appendFileSync(debugLog, `Title: ${CONFIG.msgTitle}\n`);
+fs.appendFileSync(debugLog, `Title: ${PATHS.config}\n`);
 
 let control = null;
 let remoteServer = null;
@@ -24,7 +35,7 @@ let webServer = null;
 let frpProcess = null;
 
 function startFRPClient() {
-  const frpConfigPath = path.join(__dirname, PATHS.config);
+  const frpConfigPath = path.join(PROJECT_ROOT, PATHS.config);
   if (!fs.existsSync(frpConfigPath)) {
     logger.warn(LOGS.frp.notExistConfig);
     return;

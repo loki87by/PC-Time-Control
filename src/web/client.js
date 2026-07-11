@@ -186,6 +186,10 @@ export class PCClient {
     return this.send(`ADD_LOCK_TIME:${time || "21:00"}`, false);
   }
 
+  async resetUsageTime() {
+    return this.send("RESET_USAGE", false);
+  }
+
   async clearUsageLimit() {
     return this.send("CLEAR_USAGE_LIMIT", false);
   }
