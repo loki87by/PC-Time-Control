@@ -113,6 +113,7 @@ npm run uninstall-service
 * GET_USAGE_LIMIT         - Получить текущий дневной лимит
 * GET_SESSION_LIMIT       - Получить текущий лимит сессии
 * RESET_USAGE             - Сбросить время использования
+* RESET_SESSION           - Сбросить время nt ущей сессии
 * GET_SESSION_BREAK       - Получить время отдыха между сессиями
 * GET_SHUTDOWN_TIME       - Получить время отложенного выключения
 * GET_SHUTDOWN_ABORT      - Узнать было ли отменено запланированное отключение

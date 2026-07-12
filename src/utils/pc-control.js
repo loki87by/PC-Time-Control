@@ -63,19 +63,12 @@ export class PCTimeControl {
   resetUsedTime() {
     this.startTime = new Date();
     this.isLocked = false;
-    //this.sessionStartTime = null;
-    //this.breakStartTime = null;
-    //this.isOnBreak = false;
-    //this.pendingUnlockAfterBreak = false;
-    //this.isLocked = false;
     this.saveState();
     logger.info(LOGS.control.resetUsedTime);
   }
 
   resetSessionTime() {
-    //this.startTime = new Date();
-    //this.isLocked = false;
-    this.sessionStartTime = null;
+    this.sessionStartTime = new Date();
     this.breakStartTime = null;
     this.isOnBreak = false;
     this.pendingUnlockAfterBreak = false;
@@ -109,112 +102,100 @@ export class PCTimeControl {
     return true;
   }
 
- async loadState() {
-  try {
-    const data = await fs.readFile(CONFIG.stateFile, "utf-8");
-    const state = JSON.parse(data);
+  async loadState() {
+    try {
+      const data = await fs.readFile(CONFIG.stateFile, "utf-8");
+      const state = JSON.parse(data);
 
-    if (state.lockTimes) {
-      this.lockTimes = state.lockTimes.map((t) => {
-        const [h, m] = t.split(":").map(Number);
-        return { hour: h, minute: m };
-      });
-    }
-
-    if (state.usageLimit !== undefined) {
-      this.usageLimit = state.usageLimit;
-    }
-
-    if (state.startTime) {
-      this.startTime = this.timeHandler(state.startTime);
-    }
-    
-    if (state.sessionLimit !== undefined) {
-      this.sessionLimit = state.sessionLimit;
-    }
-    
-    if (state.breakDuration !== undefined) {
-      this.breakDuration = state.breakDuration;
-    }
-    
-    if (state.isOnBreak !== undefined) {
-      this.isOnBreak = state.isOnBreak;
-    }
-    
-    if (state.pendingUnlockAfterBreak !== undefined) {
-      this.pendingUnlockAfterBreak = state.pendingUnlockAfterBreak;
-    }
-    
-    // ========== ВОССТАНОВЛЕНИЕ СЕССИИ ==========
-    // 1. Восстанавливаем сессию, если она была
-    if (state.sessionStartTime) {
-      this.sessionStartTime = this.timeHandler(state.sessionStartTime);
-    } else if (this.sessionLimit && !this.isOnBreak) {
-      // 2. Если нет сессии и не на брейке - создаем новую
-      this.sessionStartTime = new Date();
-      this.sessionWarningsSent.clear();
-      logger.info(LOGS.control.sessionStartedFirstTime);
-    }
-    
-    // 3. Проверяем, не истекла ли сессия
-    if (this.sessionLimit && this.sessionStartTime && !this.isOnBreak) {
-      const elapsed = (Date.now() - this.sessionStartTime.getTime()) / 60000;
-      if (elapsed >= this.sessionLimit) {
-        // Сессия истекла - начинаем брейк
-        logger.info(`${LOGS.control.sessionExpired} (${this.logWithTime(this.sessionLimit)})`);
-        this.sessionStartTime = null;
-        this.isOnBreak = true;
-        this.breakStartTime = new Date();
-        this.pendingUnlockAfterBreak = false;
-        logger.info(LOGS.control.autoBreakAfterExpired);
+      if (state.lockTimes) {
+        this.lockTimes = state.lockTimes.map((t) => {
+          const [h, m] = t.split(":").map(Number);
+          return { hour: h, minute: m };
+        });
       }
-    }
-    // ==========================================
-    
-    // ========== ВОССТАНОВЛЕНИЕ БРЕЙКА ==========
-    if (state.breakStartTime && this.isOnBreak) {
-      const breakStartTime = this.timeHandler(state.breakStartTime);
-      const durationMs = (this.breakDuration || this.sessionLimit || 0) * 60000;
 
-      if (Date.now() > breakStartTime.getTime() + durationMs) {
-        // Брейк закончился
-        this.isOnBreak = false;
-        this.pendingUnlockAfterBreak = true;
-        this.breakStartTime = null;
-        logger.info(LOGS.control.breakExpiredWaitingUnlock);
-      } else {
-        this.breakStartTime = breakStartTime;
+      if (state.usageLimit !== undefined) {
+        this.usageLimit = state.usageLimit;
       }
-    }
-    // ==========================================
 
-    if (state.delayShutdownTime !== undefined) {
-      this.delayShutdownTime = state.delayShutdownTime;
-      const times = state.delayShutdownTime.split(":");
-      const delayShutdownTime = new Date();
-      delayShutdownTime.setHours(+times[0], +times[1], 0, 0);
-      const delay = delayShutdownTime - new Date();
-      const seconds = delay / 1000;
+      if (state.startTime) {
+        this.startTime = this.timeHandler(state.startTime);
+      }
 
-      if (seconds > 0) this.shutdownPC(seconds, true);
-    }
+      if (state.sessionLimit !== undefined) {
+        this.sessionLimit = state.sessionLimit;
+      }
 
-    logger.info(
-      `${LOGS.control.stateLoaded}: locks=${this.lockTimes.length}, usageLimit=${this.usageLimit}, sessionActive=${!!this.sessionStartTime}, isOnBreak=${this.isOnBreak}`,
-    );
-  } catch (err) {
-    if (err.code !== "ENOENT") {
-      logger.error(`${LOGS.control.stateLoadError}: ${err.message}`);
-    }
-    
-    // Если файла нет и есть лимит - создаем сессию
-    if (this.sessionLimit && !this.sessionStartTime && !this.isOnBreak) {
-      this.sessionStartTime = new Date();
-      this.sessionWarningsSent.clear();
-      logger.info(LOGS.control.sessionCreatedFirstStart);
+      if (state.breakDuration !== undefined) {
+        this.breakDuration = state.breakDuration;
+      }
+
+      if (state.isOnBreak !== undefined) {
+        this.isOnBreak = state.isOnBreak;
+      }
+
+      if (state.pendingUnlockAfterBreak !== undefined) {
+        this.pendingUnlockAfterBreak = state.pendingUnlockAfterBreak;
+      }
+      if (state.sessionStartTime) {
+        this.sessionStartTime = this.timeHandler(state.sessionStartTime);
+      } else if (this.sessionLimit && !this.isOnBreak) {
+        this.sessionStartTime = new Date();
+        this.sessionWarningsSent.clear();
+        logger.info(LOGS.control.sessionStartedFirstTime);
+      }
+      if (this.sessionLimit && this.sessionStartTime && !this.isOnBreak) {
+        const elapsed = (Date.now() - this.sessionStartTime.getTime()) / 60000;
+        if (elapsed >= this.sessionLimit) {
+          logger.info(
+            `${LOGS.control.sessionExpired} (${this.logWithTime(this.sessionLimit)})`,
+          );
+          this.sessionStartTime = null;
+          this.isOnBreak = true;
+          this.breakStartTime = new Date();
+          this.pendingUnlockAfterBreak = false;
+          logger.info(LOGS.control.autoBreakAfterExpired);
+        }
+      }
+      if (state.breakStartTime && this.isOnBreak) {
+        const breakStartTime = this.timeHandler(state.breakStartTime);
+        const durationMs =
+          (this.breakDuration || this.sessionLimit || 0) * 60000;
+
+        if (Date.now() > breakStartTime.getTime() + durationMs) {
+          this.isOnBreak = false;
+          this.pendingUnlockAfterBreak = true;
+          this.breakStartTime = null;
+          logger.info(LOGS.control.breakExpiredWaitingUnlock);
+        } else {
+          this.breakStartTime = breakStartTime;
+        }
+      }
+      if (state.delayShutdownTime !== undefined) {
+        this.delayShutdownTime = state.delayShutdownTime;
+        const times = state.delayShutdownTime.split(":");
+        const delayShutdownTime = new Date();
+        delayShutdownTime.setHours(+times[0], +times[1], 0, 0);
+        const delay = delayShutdownTime - new Date();
+        const seconds = delay / 1000;
+
+        if (seconds > 0) this.shutdownPC(seconds, true);
+      }
+
+      logger.info(
+        `${LOGS.control.stateLoaded}: locks=${this.lockTimes.length}, usageLimit=${this.usageLimit}, sessionActive=${!!this.sessionStartTime}, isOnBreak=${this.isOnBreak}`,
+      );
+    } catch (err) {
+      if (err.code !== "ENOENT") {
+        logger.error(`${LOGS.control.stateLoadError}: ${err.message}`);
+      }
+      if (this.sessionLimit && !this.sessionStartTime && !this.isOnBreak) {
+        this.sessionStartTime = new Date();
+        this.sessionWarningsSent.clear();
+        logger.info(LOGS.control.sessionCreatedFirstStart);
+      }
     }
   }
-}
 
   async saveState() {
     try {
@@ -401,6 +382,13 @@ export class PCTimeControl {
       clearInterval(this.monitorInterval);
     }
 
+    if (!this.sessionStartTime && !this.isOnBreak) {
+      this.sessionStartTime = new Date();
+      this.sessionWarningsSent.clear();
+      this.saveState();
+      logger.info(LOGS.control.sessionStartedOnMonitor);
+    }
+
     this.monitorInterval = setInterval(async () => {
       try {
         const actualLocked = await this.checkIfLocked();
@@ -568,8 +556,6 @@ export class PCTimeControl {
     const breakDuration = this.getEffectiveBreakDuration();
     const log = `${LOGS.control.sleep} ${this.logWithTime(breakDuration)}`;
     logger.info(log);
-    /*  const msg = `⏸️ ${log}. ${LOGS.control.pcWillLock}`;
-    this.showMessage(msg, LOGS.control.sleep); */
     this.isOnBreak = true;
     this.breakStartTime = new Date();
     this.pendingUnlockAfterBreak = false;

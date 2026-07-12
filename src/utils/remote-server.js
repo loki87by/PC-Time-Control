@@ -178,14 +178,11 @@ export class RemoteControlServer {
           response = `OK: ${this.logWithTime(usageMinutes)}\n`;
           break;
         case "GET_SESSION_TIME":
-          const sessionUsageMinutes = this.pcControl.sessionStartTime ? (new Date() - this.pcControl.sessionStartTime) / 60000 : 0;
-          const dailyUsageMinutes = (new Date() - this.pcControl.startTime) / 60000;
-          console.log('this.pcControl.sessionStartTime:', this.pcControl.sessionStartTime)
-          console.log('this.pcControl.startTime:', this.pcControl.startTime)
-          console.log('new Date():', new Date())
-          console.log('sessionUsageMinutes:', sessionUsageMinutes)
-          console.log('dailyUsageMinutes:', dailyUsageMinutes)
-          console.log('sessionUsageMinutes < dailyUsageMinutes:', sessionUsageMinutes < dailyUsageMinutes)
+          const sessionUsageMinutes = this.pcControl.sessionStartTime
+            ? (new Date() - this.pcControl.sessionStartTime) / 60000
+            : 0;
+          const dailyUsageMinutes =
+            (new Date() - this.pcControl.startTime) / 60000;
           response = `OK: ${this.logWithTime(sessionUsageMinutes < dailyUsageMinutes ? sessionUsageMinutes : dailyUsageMinutes)}\n`;
           break;
         case "GET_SHUTDOWN_TIME":
@@ -203,19 +200,20 @@ export class RemoteControlServer {
               this.pcControl.setSessionLimit(sessionMinutes);
               response = `OK: ${LOGS.remote.setSessionLimit} ${this.logWithTime(sessionMinutes)}\n`;
             }
-          } else
-          if (command.startsWith("DELAYED_SHUTDOWN")) {
+          } else if (command.startsWith("DELAYED_SHUTDOWN")) {
             const delayedShutdown = parseInt(command.substring(17).trim());
             if (isNaN(delayedShutdown) || delayedShutdown <= 0) {
               response = `ERROR: ${LOGS.remote.invalidTime}\n`;
             } else {
-              const seconds = delayedShutdown / 1000
+              const seconds = delayedShutdown / 1000;
               this.pcControl.shutdownPC(seconds);
-              const delayedShutdownTime = new Date(Date.now() + delayedShutdown)
-              let hrs = delayedShutdownTime.getHours()
-              let mins = delayedShutdownTime.getMinutes()
-              hrs = `${hrs}`.length === 1 ? `0${hrs}` : `${hrs}` || '00'
-              mins = `${mins}`.length === 1 ? `0${mins}` : `${mins}` || '00'
+              const delayedShutdownTime = new Date(
+                Date.now() + delayedShutdown,
+              );
+              let hrs = delayedShutdownTime.getHours();
+              let mins = delayedShutdownTime.getMinutes();
+              hrs = `${hrs}`.length === 1 ? `0${hrs}` : `${hrs}` || "00";
+              mins = `${mins}`.length === 1 ? `0${mins}` : `${mins}` || "00";
               this.pcControl.setShutdownTime(`${hrs}:${mins}`);
               response = `OK: ${LOGS.remote.setDelayedShutdown} ${hrs}:${mins}\n`;
             }
@@ -291,8 +289,8 @@ export class RemoteControlServer {
             this.pcControl.pendingUnlockAfterBreak = false;
             this.pcControl.sessionWarningsSent.clear();
             this.pcControl.warningsSent.clear();
-            this.pcControl.delayShutdownTime = null
-            this.pcControl.delayShutdownCancelled = false
+            this.pcControl.delayShutdownTime = null;
+            this.pcControl.delayShutdownCancelled = false;
             this.pcControl.saveState();
             response = `OK: ${LOGS.remote.clearAll}\n`;
           } else if (command === "HELP" || command === "?") {
