@@ -136,6 +136,7 @@ export class Templates {
       ${info.sessionTime ? `<div class="ip">${LOGS.user.sessionUsage}: ${info.sessionTime}</div>` : ''}
       <button onclick="refresh()" class="btn btn-lock">${LOGS.user.refresh}</button>
       <button onclick="resetUsageTime()" class="btn btn-warning">${LOGS.user.resetUsageTime}</button>
+      <button onclick="resetSessionTime()" class="btn btn-warning">${LOGS.user.resetSessionTime}</button>
     </div>
     ${this.messageSection()}
     <div class="card">
@@ -345,6 +346,10 @@ export class Templates {
       async function resetUsageTime() {
         if (!confirm('${LOGS.user.resUsageConf}')) return;
         return await apiCaller({ ip: '${ip}', action: 'reset_usage_time' })
+      }
+      async function resetSessionTime() {
+        if (!confirm('${LOGS.user.resSessionConf}')) return;
+        return await apiCaller({ ip: '${ip}', action: 'reset_session_time' })
       }
       async function clearAll() {
         if (!confirm('${LOGS.user.resAllConf}')) return;

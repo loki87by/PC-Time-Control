@@ -86,6 +86,7 @@ export const LOGS = {
     isOnBreakDebug: "⚠️ ПК разблокирован во время перерыва! Блокируем...",
     welcome: "Добро пожаловать",
     resetUsedTime: 'Время использования сброшено',
+    resetSessionTime: 'Время сессии сброшено',
     lockMessageTimeout: (time) =>
       `⚠️ Компьютер будет заблокирован через ${time} минут!`,
   },

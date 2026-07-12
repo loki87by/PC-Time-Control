@@ -190,6 +190,10 @@ export class PCClient {
     return this.send("RESET_USAGE", false);
   }
 
+  async resetSessionTime() {
+    return this.send("RESET_SESSION", false);
+  }
+
   async clearUsageLimit() {
     return this.send("CLEAR_USAGE_LIMIT", false);
   }

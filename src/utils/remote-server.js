@@ -123,6 +123,10 @@ export class RemoteControlServer {
           this.pcControl.resetUsedTime();
           response = `OK: ${LOGS.control.resetUsedTime}\n`;
           break;
+        case "RESET_SESSION":
+          this.pcControl.resetSessionTime();
+          response = `OK: ${LOGS.control.resetSessionTime}\n`;
+          break;
         case "LOCK":
           this.pcControl.lockPC();
           response = `OK: ${LOGS.remote.lock}\n`;
@@ -174,8 +178,14 @@ export class RemoteControlServer {
           response = `OK: ${this.logWithTime(usageMinutes)}\n`;
           break;
         case "GET_SESSION_TIME":
-          const sessionUsageMinutes = (new Date() - this.pcControl.sessionStartTime) / 60000;
+          const sessionUsageMinutes = this.pcControl.sessionStartTime ? (new Date() - this.pcControl.sessionStartTime) / 60000 : 0;
           const dailyUsageMinutes = (new Date() - this.pcControl.startTime) / 60000;
+          console.log('this.pcControl.sessionStartTime:', this.pcControl.sessionStartTime)
+          console.log('this.pcControl.startTime:', this.pcControl.startTime)
+          console.log('new Date():', new Date())
+          console.log('sessionUsageMinutes:', sessionUsageMinutes)
+          console.log('dailyUsageMinutes:', dailyUsageMinutes)
+          console.log('sessionUsageMinutes < dailyUsageMinutes:', sessionUsageMinutes < dailyUsageMinutes)
           response = `OK: ${this.logWithTime(sessionUsageMinutes < dailyUsageMinutes ? sessionUsageMinutes : dailyUsageMinutes)}\n`;
           break;
         case "GET_SHUTDOWN_TIME":
