@@ -223,6 +223,9 @@ export class PCTimeControl {
   }
 
   async checkIfLocked() {
+    if (this.startTime.getDay() !== new Date().getDay()) {
+      this.startTime === new Date()
+    }
     try {
       if (process.platform === "win32") {
         const { stdout } = await execPromise(PATHS.commands.logon);
