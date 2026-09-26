@@ -9,7 +9,7 @@
 /.pnp
 .pnp.js
 test.js
-.log
+*.log
 
 # testing
 /coverage

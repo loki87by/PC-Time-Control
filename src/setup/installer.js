@@ -192,9 +192,9 @@ async function main() {
   installService();
 
   // Добавляем в автозагрузку (как запасной вариант)
-  setTimeout(() => {
+/*   setTimeout(() => {
     installStartupShortcut();
-  }, 2000);
+  }, 2000); */
 
   console.log(LOGS.setup.complete);
   console.log(LOGS.setup.boot);

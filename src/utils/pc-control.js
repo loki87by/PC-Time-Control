@@ -18,6 +18,8 @@ export class PCTimeControl {
     this.currentUser = os.userInfo().username;
     this.warningsSent = new Set();
     this.monitorInterval = null;
+    this.sessionCount = 0;
+    this.sessions = [];// or Set???
     this.stateLoaded = false;
     this.isShuttingDown = false;
     this.sessionLimit = null;
@@ -63,6 +65,8 @@ export class PCTimeControl {
   resetUsedTime() {
     this.startTime = new Date();
     this.isLocked = false;
+    this.sessionCount = 0;
+    //this.sessions = []
     this.saveState();
     logger.info(LOGS.control.resetUsedTime);
   }
@@ -120,6 +124,10 @@ export class PCTimeControl {
 
       if (state.startTime) {
         this.startTime = this.timeHandler(state.startTime);
+      }
+
+      if (state.sessionCount) {
+        this.sessionCount = state.sessionCount;
       }
 
       if (state.sessionLimit !== undefined) {
@@ -214,6 +222,7 @@ export class PCTimeControl {
         pendingUnlockAfterBreak: this.pendingUnlockAfterBreak,
         delayShutdownTime: this.delayShutdownTime,
       };
+      if (this.sessionLimit) state.sessionCount = this.sessionCount;
 
       await fs.writeFile(CONFIG.stateFile, JSON.stringify(state, null, 2));
       logger.info(LOGS.control.stateSaved);
@@ -224,7 +233,7 @@ export class PCTimeControl {
 
   async checkIfLocked() {
     if (this.startTime.getDay() !== new Date().getDay()) {
-      this.startTime === new Date()
+      this.startTime === new Date();
     }
     try {
       if (process.platform === "win32") {
@@ -361,7 +370,7 @@ export class PCTimeControl {
     }
 
     if (this.usageLimit) {
-      const usageMinutes = (now - this.startTime) / 60000;
+      const usageMinutes = this.getUsageMinutes();
       const diff = this.usageLimit - usageMinutes;
 
       if ((minRemaining === null || diff < minRemaining) && diff >= 0) {
@@ -463,7 +472,7 @@ export class PCTimeControl {
     }
 
     if (this.usageLimit) {
-      const usageMinutes = (now - this.startTime) / 60000;
+      const usageMinutes = this.getUsageMinutes();
       if (usageMinutes >= this.usageLimit) {
         logger.info(
           `${LOGS.control.useLimit} ${this.logWithTime(this.usageLimit)}`,
@@ -533,7 +542,13 @@ export class PCTimeControl {
 
   getSessionUsageMinutes() {
     if (!this.sessionStartTime) return 0;
-    return (Date.now() - this.sessionStartTime.getTime()) / 60000;
+    return Math.floor((Date.now() - this.sessionStartTime.getTime()) / 60000);
+  }
+
+  getUsageMinutes() {
+    return !this.sessionCount
+      ? Math.floor((now - this.startTime) / 60000)
+      : this.sessionCount * this.sessionLimit + this.getSessionUsageMinutes();
   }
 
   getSessionTimeRemaining() {
@@ -562,6 +577,7 @@ export class PCTimeControl {
     this.isOnBreak = true;
     this.breakStartTime = new Date();
     this.pendingUnlockAfterBreak = false;
+    this.sessionCount++;
     this.saveState();
   }
 
