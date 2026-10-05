@@ -40,13 +40,36 @@ let control = null;
 let remoteServer = null;
 let webServer = null;
 let frpProcess = null;
+let frpSStartTryCnt = 0;
+
+const frpConfigPath = path.join(PROJECT_ROOT, PATHS.config);
+
+function updFrpcConf(token) {
+  const oldConf = fs.readFileSync(frpConfigPath, "utf8");
+  const logDirPath = path.join(
+    frpConfigPath.replace("frpc.yaml", ""),
+    "frpcHistory",
+  );
+
+  if (!fs.existsSync(logDirPath)) {
+    fs.mkdirSync(logDirPath, { recursive: true });
+  }
+  fs.appendFileSync(
+    path.join(logDirPath, `${Date.parse(new Date())}.yaml`),
+    oldConf,
+  );
+  const confArr = oldConf.split("\n");
+  const confTokenIndex = confArr.findIndex((i) => i.includes("token"));
+  confArr.splice(confTokenIndex, 1, `token: "${token}"`);
+  const newConf = confArr.join("\n");
+  fs.writeFileSync(frpConfigPath, newConf);
+}
 
 async function frpConnectUpdater() {
   const response = await fetch(`${process.env.BASE}/get_frp_start_time`, {
     method: "GET",
   });
   const res = await response.json();
-  console.log("response: ", res);
 
   if (res.success && res.data && isFinite(+res.data)) {
     const { data } = res;
@@ -60,19 +83,18 @@ async function frpConnectUpdater() {
     console.log(
       `frp-server started more than ${times[0].val} ${times[0].k.toLowerCase()}s ago...`,
     );
-    const manager = new FrpConnectManager()
-    const loginStatus = await manager.login()
-    console.log('loginStatus', loginStatus)
-    
+    const manager = new FrpConnectManager();
+    const loginStatus = await manager.login();
+
     if (loginStatus !== 302) return setTimeout(startFRPClient, 5000);
-    
-    const token = await manager.getCurrentToken()
-    console.log('token', token)
+
+    const token = await manager.getCurrentToken();
+
+    if (token) updFrpcConf(token);
   }
 }
 
 function startFRPClient() {
-  const frpConfigPath = path.join(PROJECT_ROOT, PATHS.config);
   if (!fs.existsSync(frpConfigPath)) {
     logger.warn(LOGS.frp.notExistConfig);
     return;
@@ -95,7 +117,12 @@ function startFRPClient() {
   frpProcess.on("close", (code) => {
     logger.info(`${LOGS.frp.exit} ${code}`);
     if (code !== 0) {
-      setTimeout(startFRPClient, 5000);
+
+      if (frpSStartTryCnt < 5) {
+        console.log(`\nfrpSStartTryCnt: ${frpSStartTryCnt}\n`)
+        frpSStartTryCnt++;
+        setTimeout(startFRPClient, 5000);
+      } 
     }
   });
   frpProcess.on("error", (err) => {

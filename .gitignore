@@ -2,25 +2,25 @@
 
 # dependencies
 /node_modules
-/static
-
 /.idea
 /.vscode/*
 /.pnp
 .pnp.js
 test.js
-*.log
-.env
 
 # testing
 /coverage
 
 # production
-frpc.yaml
+/static
 /logs/*
 /build
 /dist
+/frpcHistory
 package-lock.json
+frpc.yaml
+.log
+.env
 .lnk
 
 # misc
