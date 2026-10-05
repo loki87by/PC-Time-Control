@@ -313,3 +313,10 @@ export const PATHS = {
     shutdown: (timeout) => `shutdown -h +${timeout}`,
   },
 };
+
+const SECOND = 1000
+const MINUTE = SECOND * 60
+const HOUR = MINUTE * 60
+const DAY = HOUR * 24
+
+export const TIMES = { SECOND, MINUTE, HOUR, DAY }

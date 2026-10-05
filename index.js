@@ -3,21 +3,28 @@ import net from "net";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { createRequire } from "module";
+//import { createRequire } from "module";
 import { spawn, execSync } from "child_process";
+import dotenv from "dotenv";
 import { fileURLToPath } from "url";
+import { TIMES } from "./src/utils/consts.js";
+import FrpConnectManager from "./src/utils/frpConnectManager.js";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = process.env.PROJECT_ROOT || __dirname;
 process.chdir(PROJECT_ROOT);
 
-const debugLog = path.join(process.env.PROJECT_ROOT || __dirname, 'debug-startup.log');
+const debugLog = path.join(
+  process.env.PROJECT_ROOT || __dirname,
+  "debug-startup.log",
+);
 fs.writeFileSync(debugLog, `[${new Date().toISOString()}] STARTING...\n`);
 fs.appendFileSync(debugLog, `PROJECT_ROOT: ${process.env.PROJECT_ROOT}\n`);
 fs.appendFileSync(debugLog, `__dirname: ${__dirname}\n`);
 fs.appendFileSync(debugLog, `process.cwd(): ${process.cwd()}\n`);
-
 
 import { WebServer } from "#web/server";
 import { CONFIG } from "#config";
@@ -34,6 +41,36 @@ let remoteServer = null;
 let webServer = null;
 let frpProcess = null;
 
+async function frpConnectUpdater() {
+  const response = await fetch(`${process.env.BASE}/get_frp_start_time`, {
+    method: "GET",
+  });
+  const res = await response.json();
+  console.log("response: ", res);
+
+  if (res.success && res.data && isFinite(+res.data)) {
+    const { data } = res;
+    const times = Object.entries(TIMES)
+      .map(([k, v]) => {
+        const val = Math.floor(+data / v);
+        return { k, val };
+      })
+      .filter((i) => i.val > 0)
+      .sort((a, b) => a.val - b.val);
+    console.log(
+      `frp-server started more than ${times[0].val} ${times[0].k.toLowerCase()}s ago...`,
+    );
+    const manager = new FrpConnectManager()
+    const loginStatus = await manager.login()
+    console.log('loginStatus', loginStatus)
+    
+    if (loginStatus !== 302) return setTimeout(startFRPClient, 5000);
+    
+    const token = await manager.getCurrentToken()
+    console.log('token', token)
+  }
+}
+
 function startFRPClient() {
   const frpConfigPath = path.join(PROJECT_ROOT, PATHS.config);
   if (!fs.existsSync(frpConfigPath)) {
@@ -41,11 +78,7 @@ function startFRPClient() {
     return;
   }
   logger.info(LOGS.frp.start);
-  const args = [
-    PATHS.library,
-    "client",
-    frpConfigPath,
-  ];
+  const args = [PATHS.library, "client", frpConfigPath];
   frpProcess = spawn("node", args, {
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
@@ -55,8 +88,9 @@ function startFRPClient() {
   frpProcess.stdout.on("data", (data) => {
     logger.info(`FRP: ${data.toString().trim()}`);
   });
-  frpProcess.stderr.on("data", (data) => {
+  frpProcess.stderr.on("data", async (data) => {
     logger.error(`FRP Error: ${data.toString().trim()}`);
+    return await frpConnectUpdater();
   });
   frpProcess.on("close", (code) => {
     logger.info(`${LOGS.frp.exit} ${code}`);
@@ -76,9 +110,9 @@ async function main() {
     logger.info(`${LOGS.base.node}: ${process.version}`);
     control = new PCTimeControl();
     const isRemotePortAvailable = await checkPort(CONFIG.serverPort);
-    
+
     if (!isRemotePortAvailable) {
-      const log = LOGS.base.usedPort(CONFIG.serverPort)
+      const log = LOGS.base.usedPort(CONFIG.serverPort);
       logger.error(log);
       control.showMessage(
         `${log}\n${LOGS.user.firewall}`,
@@ -89,7 +123,7 @@ async function main() {
     const isWebPortAvailable = await checkPort(CONFIG.webPort);
 
     if (!isWebPortAvailable) {
-      const log = LOGS.base.usedPort(CONFIG.webPort)
+      const log = LOGS.base.usedPort(CONFIG.webPort);
       logger.warn(`${log} ${LOGS.base.webPortUsed}`);
     }
 
@@ -103,7 +137,9 @@ async function main() {
 
     const localIP = getLocalIP();
     logger.info(LOGS.base.started);
-    logger.info(LOGS.base.portLog(LOGS.base.url, localIP, `:${CONFIG.webPort}`));
+    logger.info(
+      LOGS.base.portLog(LOGS.base.url, localIP, `:${CONFIG.webPort}`),
+    );
     logger.info(LOGS.base.portLog(LOGS.base.panel, localIP, CONFIG.serverPort));
     process.on("SIGINT", gracefulShutdown);
     process.on("SIGTERM", gracefulShutdown);
