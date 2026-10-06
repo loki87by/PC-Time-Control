@@ -43,8 +43,9 @@ async function getFrpLogs() {
 
 async function restartFrpc() {
   try {
+    await execPromise("systemctl restart frp-server");
     const { stdout, stderr } = await execPromise(
-      "systemctl restart frp-server --lines 10",
+      "systemctl status frp-server --lines 10",
     );
 
     if (stderr) {
