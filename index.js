@@ -91,6 +91,8 @@ async function frpConnectUpdater() {
     const token = await manager.getCurrentToken();
 
     if (token) updFrpcConf(token);
+    await manager.addRedirect();
+    console.log('ok')
   }
 }
 
