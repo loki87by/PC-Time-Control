@@ -30,6 +30,7 @@ frpc.yaml
 .env.test.local
 .env.production.local
 
+debug-startup.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

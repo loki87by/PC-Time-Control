@@ -4,13 +4,13 @@ import { PATHS } from "../utils/consts.js";
 
 dotenv.config();
 
-export default class FrpConnectManager {
+export class FrpConnectManager {
   constructor() {
     this.cookie = null;
     this.id = null;
     this.token = null;
     this.tryCount = 0;
-    this.description = "admin" //test
+    this.description = "test" // variable may be empty
     this.name = process.env.NAME;
     this.redirectConfig = {
       name: "web-panel", // variable name
@@ -28,7 +28,7 @@ export default class FrpConnectManager {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        username: process.env.USER,
+        username: process.env.FRP_ADMIN,
         password: process.env.PASS,
       }),
       redirect: "manual",

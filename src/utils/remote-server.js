@@ -297,7 +297,7 @@ export class RemoteControlServer {
           }
       }
     } catch (err) {
-      logger.error(`${LOGS.remote.commandError}: ${err.message}`);
+      logger.error(`${LOGS.remote.commandError}: ${err.message},\n ${err.stack}`);
       response = `ERROR: ${err.message}\n`;
     }
 

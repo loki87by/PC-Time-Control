@@ -320,3 +320,7 @@ const HOUR = MINUTE * 60
 const DAY = HOUR * 24
 
 export const TIMES = { SECOND, MINUTE, HOUR, DAY }
+
+export const FRP_NEED_RESTART_ERRORS = [
+  'Не найдено строки об активности...',
+]

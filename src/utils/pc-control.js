@@ -546,6 +546,7 @@ export class PCTimeControl {
   }
 
   getUsageMinutes() {
+    const now = Date.now()
     return !this.sessionCount
       ? Math.floor((now - this.startTime) / 60000)
       : this.sessionCount * this.sessionLimit + this.getSessionUsageMinutes();

@@ -7,8 +7,6 @@ import path from "path";
 import { spawn, execSync } from "child_process";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
-import { TIMES } from "./src/utils/consts.js";
-import FrpConnectManager from "./src/utils/frpConnectManager.js";
 
 dotenv.config();
 
@@ -26,12 +24,16 @@ fs.appendFileSync(debugLog, `PROJECT_ROOT: ${process.env.PROJECT_ROOT}\n`);
 fs.appendFileSync(debugLog, `__dirname: ${__dirname}\n`);
 fs.appendFileSync(debugLog, `process.cwd(): ${process.cwd()}\n`);
 
+const frpConfigPath = path.join(PROJECT_ROOT, PATHS.config);
+const currentStatePath = path.join(PROJECT_ROOT, CONFIG.stateFile);
+
 import { WebServer } from "#web/server";
 import { CONFIG } from "#config";
-import { LOGS, PATHS } from "#consts";
+import { LOGS, PATHS, TIMES, FRP_NEED_RESTART_ERRORS } from "#consts";
 import { logger } from "#utils/logger";
 import { PCTimeControl } from "#utils/pc-control";
 import { RemoteControlServer } from "#utils/remote-server";
+import { FrpConnectManager } from "#utils/frpConnectManager";
 
 fs.appendFileSync(debugLog, `Title: ${CONFIG.msgTitle}\n`);
 fs.appendFileSync(debugLog, `Title: ${PATHS.config}\n`);
@@ -41,11 +43,27 @@ let remoteServer = null;
 let webServer = null;
 let frpProcess = null;
 let frpSStartTryCnt = 0;
+let frpConnectUpdateStarted = false;
 
-const frpConfigPath = path.join(PROJECT_ROOT, PATHS.config);
+function getFrpcConf() {
+  const conf = fs.readFileSync(frpConfigPath, "utf8");
+  const confArr = conf.split("\n");
+  const tokenIndex = confArr.findIndex((i) => i.includes("token"));
+  const token = confArr[tokenIndex]
+    .replace(/"/gi, "")
+    .replace(/\r/gi, "")
+    .replace(/token:\s*/, "");
+  return { token, confArr, tokenIndex, conf };
+}
 
-function updFrpcConf(token) {
-  const oldConf = fs.readFileSync(frpConfigPath, "utf8");
+function getStateTime() {
+  const state = JSON.parse(fs.readFileSync(currentStatePath, "utf8"));
+  return state.startTime;
+}
+
+function updFrpcConf(new_token) {
+  const { confArr, tokenIndex, conf } = getFrpcConf();
+  confArr.splice(tokenIndex, 1, `token: "${new_token}"`);
   const logDirPath = path.join(
     frpConfigPath.replace("frpc.yaml", ""),
     "frpcHistory",
@@ -56,43 +74,74 @@ function updFrpcConf(token) {
   }
   fs.appendFileSync(
     path.join(logDirPath, `${Date.parse(new Date())}.yaml`),
-    oldConf,
+    conf,
   );
-  const confArr = oldConf.split("\n");
-  const confTokenIndex = confArr.findIndex((i) => i.includes("token"));
-  confArr.splice(confTokenIndex, 1, `token: "${token}"`);
   const newConf = confArr.join("\n");
   fs.writeFileSync(frpConfigPath, newConf);
 }
 
 async function frpConnectUpdater() {
+  if (frpConnectUpdateStarted || !CONFIG.hasFrpcApi) return;
+
+  frpConnectUpdateStarted = true;
   const response = await fetch(`${process.env.BASE}/get_frp_start_time`, {
     method: "GET",
   });
   const res = await response.json();
 
-  if (res.success && res.data && isFinite(+res.data)) {
-    const { data } = res;
-    const times = Object.entries(TIMES)
-      .map(([k, v]) => {
-        const val = Math.floor(+data / v);
-        return { k, val };
-      })
-      .filter((i) => i.val > 0)
-      .sort((a, b) => a.val - b.val);
-    console.log(
-      `frp-server started more than ${times[0].val} ${times[0].k.toLowerCase()}s ago...`,
-    );
-    const manager = new FrpConnectManager();
-    const loginStatus = await manager.login();
+  if (!res.success && !res.data) {
+    logger.error(`something wrong: ${String(res)}`);
+  } else {
+    if (!isFinite(+res.data)) {
+      const needRestartFrpServer = FRP_NEED_RESTART_ERRORS.includes(res.data);
+      if (!needRestartFrpServer) {
+        logger.warn(`something wrong: ${res.data}`);
+      } else {
+        const restarted = await fetch(
+          `${process.env.BASE}/restart_frp_service`,
+          {
+            method: "GET",
+          },
+        );
+        const { success, data } = restarted;
 
-    if (loginStatus !== 302) return setTimeout(startFRPClient, 5000);
+        if (!success || !data) logger.warn(`frpc restart error: ${data}`);
+        frpConnectUpdateStarted = false;
+        return setTimeout(startFRPClient, 5000);
+      }
+    } else {
+      const { data } = res;
+      const times = Object.entries(TIMES)
+        .map(([k, v]) => {
+          const val = Math.floor(+data / v);
+          return { k, val };
+        })
+        .filter((i) => i.val > 0)
+        .sort((a, b) => a.val - b.val);
+      logger.info(
+        `frp-server started more than ${times[0].val} ${times[0].k.toLowerCase()}s ago...`,
+      );
 
-    const token = await manager.getCurrentToken();
+      const startTime = getStateTime();
 
-    if (token) updFrpcConf(token);
-    await manager.addRedirect();
-    console.log('ok')
+      if (data > new Date(startTime)) {
+        const manager = new FrpConnectManager();
+        const loginStatus = await manager.login();
+
+        if (loginStatus !== 302) {
+          frpConnectUpdateStarted = false;
+          return setTimeout(startFRPClient, 5000);
+        }
+
+        const token = await manager.getCurrentToken();
+        const oldConf = getFrpcConf();
+        const tokensIsEqual = token === oldConf.token;
+
+        if (!tokensIsEqual) updFrpcConf(token);
+        await manager.addRedirect();
+      }
+      frpConnectUpdateStarted = false;
+    }
   }
 }
 
@@ -119,12 +168,10 @@ function startFRPClient() {
   frpProcess.on("close", (code) => {
     logger.info(`${LOGS.frp.exit} ${code}`);
     if (code !== 0) {
-
       if (frpSStartTryCnt < 5) {
-        console.log(`\nfrpSStartTryCnt: ${frpSStartTryCnt}\n`)
         frpSStartTryCnt++;
         setTimeout(startFRPClient, 5000);
-      } 
+      }
     }
   });
   frpProcess.on("error", (err) => {
