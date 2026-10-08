@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
-import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { Service } from "node-windows";
 import {LOGS} from '../utils/consts.js'
 
@@ -14,6 +13,7 @@ const SERVICE_NAME = "PCTimeControl";
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
 const SCRIPT_PATH = path.join(PROJECT_ROOT, "index.js");
 const CONFIG_PATH = path.join(__dirname, "config.js");
+const CONFIG_URL = pathToFileURL(CONFIG_PATH).href;
 
 function installService() {
   console.log(LOGS.setup.init);
@@ -33,7 +33,7 @@ function installService() {
       name: SERVICE_NAME,
       description: LOGS.setup.serviceDescription,
       script: SCRIPT_PATH,
-      nodeOptions: [`--import=${CONFIG_PATH}`, 
+      nodeOptions: [`--import=${CONFIG_URL}`, 
         "--max-old-space-size=512",
         "--no-warnings",
         "--experimental-specifier-resolution=node"],

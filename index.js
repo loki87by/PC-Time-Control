@@ -156,7 +156,7 @@ function startFRPClient() {
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
     windowsHide: true,
-    shell: true,
+    // shell: true, // may be need uncomment when started local
   });
   frpProcess.stdout.on("data", (data) => {
     logger.info(`FRP: ${data.toString().trim()}`);
