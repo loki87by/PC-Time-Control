@@ -19,7 +19,7 @@ export class PCTimeControl {
     this.warningsSent = new Set();
     this.monitorInterval = null;
     this.sessionCount = 0;
-    this.sessions = [];// or Set???
+    this.sessions = [];
     this.stateLoaded = false;
     this.isShuttingDown = false;
     this.sessionLimit = null;
@@ -100,6 +100,7 @@ export class PCTimeControl {
     if (CONFIG.monitoredUsers.length > 0) {
       return CONFIG.monitoredUsers.includes(this.currentUser);
     }
+
     if (CONFIG.exemptUsers.length > 0) {
       return !CONFIG.exemptUsers.includes(this.currentUser);
     }
@@ -546,7 +547,7 @@ export class PCTimeControl {
   }
 
   getUsageMinutes() {
-    const now = Date.now()
+    const now = Date.now();
     return !this.sessionCount
       ? Math.floor((now - this.startTime) / 60000)
       : this.sessionCount * this.sessionLimit + this.getSessionUsageMinutes();

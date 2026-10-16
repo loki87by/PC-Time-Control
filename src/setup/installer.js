@@ -4,7 +4,7 @@ import path from "path";
 import { execSync } from "child_process";
 import { fileURLToPath, pathToFileURL } from "url";
 import { Service } from "node-windows";
-import {LOGS} from '../utils/consts.js'
+import { LOGS } from "../utils/consts.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,7 +19,6 @@ function installService() {
   console.log(LOGS.setup.init);
 
   try {
-    // Проверяем права администратора
     try {
       execSync("net session", { stdio: "ignore" });
     } catch (err) {
@@ -27,16 +26,16 @@ function installService() {
       console.log(LOGS.setup.rootHint);
       process.exit(1);
     }
-
-    // Создаем сервис
     const svc = new Service({
       name: SERVICE_NAME,
       description: LOGS.setup.serviceDescription,
       script: SCRIPT_PATH,
-      nodeOptions: [`--import=${CONFIG_URL}`, 
+      nodeOptions: [
+        `--import=${CONFIG_URL}`,
         "--max-old-space-size=512",
         "--no-warnings",
-        "--experimental-specifier-resolution=node"],
+        "--experimental-specifier-resolution=node",
+      ],
       env: [
         {
           name: "NODE_ENV",
@@ -47,27 +46,24 @@ function installService() {
           value: PROJECT_ROOT,
         },
         {
-            name: "NODE_PATH",
-            value: PROJECT_ROOT,
+          name: "NODE_PATH",
+          value: PROJECT_ROOT,
         },
         {
-            name: "PATH",
-            value: process.env.PATH,
-        }
+          name: "PATH",
+          value: process.env.PATH,
+        },
       ],
       logOnAsUser: true,
       logOnAsUserAccount: process.env.USERNAME,
       logOnAsUserPassword: null,
       workingDirectory: PROJECT_ROOT,
-
       log: {
-          file: path.join(PROJECT_ROOT, 'service.log'),
-          stdout: true,
-          stderr: true,
-      }
+        file: path.join(PROJECT_ROOT, "service.log"),
+        stdout: true,
+        stderr: true,
+      },
     });
-
-    // События установки
     svc.on("install", () => {
       console.log(LOGS.setup.success);
       console.log(`   ${LOGS.setup.name}: ${SERVICE_NAME}`);
@@ -79,22 +75,18 @@ function installService() {
       console.log(`\n${LOGS.setup.uninstall}`);
       console.log(`   node installer.js uninstall`);
     });
-
     svc.on("alreadyinstalled", () => {
       console.log(LOGS.setup.uninstall);
       console.log(LOGS.setup.uninstallHint);
     });
-
     svc.on("invalidinstallation", () => {
       console.log(LOGS.setup.invalid);
       console.log(LOGS.setup.invalidHint);
     });
-
     svc.on("error", (err) => {
       console.log(`${LOGS.setup.error}: ${err.message}`);
       process.exit(1);
     });
-
     svc.install();
   } catch (err) {
     console.log(`${LOGS.setup.error}: ${err.message}`);
@@ -116,16 +108,13 @@ function uninstallService() {
       name: SERVICE_NAME,
       script: SCRIPT_PATH,
     });
-
     svc.on("uninstall", () => {
       console.log(LOGS.setup.uninstallSuccess);
     });
-
     svc.on("error", (err) => {
       console.log(`${LOGS.setup.uninstallError}: ${err.message}`);
       process.exit(1);
     });
-
     svc.uninstall();
   } catch (err) {
     console.log(`${LOGS.setup.uninstallError}: ${err.message}`);
@@ -133,7 +122,6 @@ function uninstallService() {
   }
 }
 
-// Автоустановка в автозагрузку для текущего пользователя
 function installStartupShortcut() {
   console.log(LOGS.setup.startupInit);
 
@@ -146,10 +134,7 @@ function installStartupShortcut() {
       "Programs",
       "Startup",
     );
-
     const shortcutPath = path.join(startupFolder, "PC Time Control.lnk");
-
-    // Используем PowerShell для создания ярлыка
     const psScript = `
 $WshShell = New-Object -comObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut('${shortcutPath}')
@@ -160,8 +145,7 @@ $Shortcut.WindowStyle = 7
 $Shortcut.IconLocation = '${process.execPath}, 0'
 $Shortcut.Save()
 `;
-
-    execSync(`powershell -Command "& {${psScript.replace(/\r?\n/g, '; ')}}"`, {
+    execSync(`powershell -Command "& {${psScript.replace(/\r?\n/g, "; ")}}"`, {
       stdio: "ignore",
     });
     console.log(LOGS.setup.startupSuccess);
@@ -171,7 +155,6 @@ $Shortcut.Save()
   }
 }
 
-// Основная функция
 async function main() {
   const args = process.argv.slice(2);
 
@@ -184,18 +167,12 @@ async function main() {
     installStartupShortcut();
     return;
   }
-
-  // По умолчанию - полная установка
   console.log(LOGS.setup.full);
-
-  // Устанавливаем сервис
   installService();
-
   // Добавляем в автозагрузку (как запасной вариант)
-/*   setTimeout(() => {
+  /*   setTimeout(() => {
     installStartupShortcut();
   }, 2000); */
-
   console.log(LOGS.setup.complete);
   console.log(LOGS.setup.boot);
 }

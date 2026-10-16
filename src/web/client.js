@@ -1,8 +1,5 @@
 import net from "net";
-
 import { CONFIG } from "#config";
-import { LOGS } from "#consts";
-import { logger } from "#utils/logger";
 
 export class PCClient {
   constructor(ip, timeout = 2000) {
@@ -70,6 +67,11 @@ export class PCClient {
     return { success: true, response: value };
   }
 
+  async getAppPath() {
+    const result = await this.send("GET_APP_PATH");
+    return result.success ? result.response : null;
+  }
+
   async getPCName() {
     const result = await this.send("GET_NAME");
     return result.success ? result.response : null;
@@ -118,18 +120,18 @@ export class PCClient {
 
   async getUsageTime() {
     const result = await this.send("GET_USAGE_TIME");
-    if (!result.success || !result.response) return null
-    
-    const int = result.response.replace(/\D/gi, '')
-    return +int ? result.response : null
+    if (!result.success || !result.response) return null;
+
+    const int = result.response.replace(/\D/gi, "");
+    return +int ? result.response : null;
   }
 
   async getSessionTime() {
     const result = await this.send("GET_SESSION_TIME");
-    if (!result.success || !result.response) return null
-    
-    const int = result.response.replace(/\D/gi, '')
-    return +int ? result.response : null
+    if (!result.success || !result.response) return null;
+
+    const int = result.response.replace(/\D/gi, "");
+    return +int ? result.response : null;
   }
 
   async getShutdownTime() {

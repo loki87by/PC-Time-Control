@@ -1,9 +1,27 @@
+import { CONFIG } from "#config";
+
 export const LOGS = {
+  root: {
+    start: " ПОГНАЛИ...\n",
+    pr: "\nРут-директория: ",
+    dirname: "\nПапка проекта: ",
+    cwd: "\nДиректория процесса: ",
+    msgTitle: "\nЗаголовок оповещений пользователя: ",
+    configFile: "\nКонфиг-файл frpc: ",
+  },
   frp: {
     notExistConfig: "Нет конфига FRP - доступ только в локальной сети",
     start: "Запускаю FRP...",
     exit: "FRP-клиент отключился с кодом",
     fail: "Не удалось запустить FRP",
+    newMaster: "Я стал FRP-мастером, запускаю FRP...",
+    noMaster: "Я не FRP-мастер, FRP не запускаю",
+    changeMaster: "Я перестал быть FRP-мастером, останавливаю FRP...",
+    chooseMaster: "В сети нет FRP-мастера, запускаю выборы...",
+    getTimeErr: "Ошибка получения времени работы сервера-frpc",
+    restartErr: "Ошибка перезапуска сервера-frpc",
+    unknownAnswer: "Неизвестный ответ frpc-Api: ",
+    started: "frp-server запущен более чем ",
   },
   base: {
     start: "=== Запускаю родительский контроль ===",
@@ -85,8 +103,8 @@ export const LOGS = {
     endSleepTime: "✅ Перерыв завершен, ожидается ручная разблокировка ПК",
     isOnBreakDebug: "⚠️ ПК разблокирован во время перерыва! Блокируем...",
     welcome: "Добро пожаловать",
-    resetUsedTime: 'Время использования сброшено',
-    resetSessionTime: 'Время сессии сброшено',
+    resetUsedTime: "Время использования сброшено",
+    resetSessionTime: "Время сессии сброшено",
     lockMessageTimeout: (time) =>
       `⚠️ Компьютер будет заблокирован через ${time} минут!`,
   },
@@ -167,6 +185,7 @@ export const LOGS = {
     lock: "🔒 ЗАБЛОКИРОВАН",
     unlock: "🟢 РАЗБЛОКИРОВАН",
     online: "🟢 ОНЛАЙН",
+    offline: "📴 ОФЛАЙН",
     emptyNetwork: "В сети нет обнаруженных ПК.",
     emptyNetworkHint:
       "Убедитесь, что агент PC Time Control запущен на других компьютерах.",
@@ -225,11 +244,11 @@ export const LOGS = {
     delayLockSave: "Утвердить время блокировки",
     delayShutdownSave: "Утвердить время выключения",
     delayShutdownAbort: "Отменить на сегодня",
-    dailyUsage: 'Дневное использование',
-    sessionUsage: 'Текущее использование',
-    cancel: 'ОТМЕНЕНО',
-    resetSessionTime: 'Сбросить время текущей сессии',
-    resetUsageTime: 'Сбросить время дневного использования'
+    dailyUsage: "Дневное использование",
+    sessionUsage: "Текущее использование",
+    cancel: "ОТМЕНЕНО",
+    resetSessionTime: "Сбросить время текущей сессии",
+    resetUsageTime: "Сбросить время дневного использования",
   },
   web: {
     started: "Веб-сервер запущен на порту",
@@ -240,34 +259,114 @@ export const LOGS = {
     failCon: "Ошибка соединения",
     scanErr: "Ошибка сканирования",
     refreshErr: "Ошибка обновления",
+    frpStatusChange: "Статус FRP-мастера изменился: ",
+    iNot: "Я не ",
+    iAm: "Я ",
+    response: "✅ Сервер отвечает на ",
+    reject: "❌ Сервер НЕ отвечает: ",
   },
   setup: {
     init: "📦 Установка родительского контроля как службы Windows...",
     noRoot: "❌ Скрипт должен быть запущен от имени администратора",
-    rootHint: '   Кликнуть правой кнопкой мыши по командной строке или PowerShell и выбрать "Запустить от имени администратора"',
+    rootHint:
+      '   Кликнуть правой кнопкой мыши по командной строке или PowerShell и выбрать "Запустить от имени администратора"',
     serviceDescription: "Kids-monitor - служба родительского контроля",
     success: "✅ Служба успешно установлена!",
-    name: 'Имя',
-    script: 'Путь к скрипту',
-    startScript: '📝 Для запуска запустите команду:',
-    stopScript: '📝 Для остановки запустите команду:',
-    uninstall: '📝 Для удаления запустите команду:',
+    name: "Имя",
+    script: "Путь к скрипту",
+    startScript: "📝 Для запуска запустите команду:",
+    stopScript: "📝 Для остановки запустите команду:",
+    uninstall: "📝 Для удаления запустите команду:",
     already: "⚠️ Сервис уже установлен!",
     uninstallHint: '   Сначала удалите командой "node installer.js uninstall"',
     invalid: "❌ Обнаружена ошибочная установка.",
     invalidHint: "   Попробуйте сначала удалить: node installer.js uninstall",
-    error: '❌ Ошибка установки',
+    error: "❌ Ошибка установки",
     uninstalling: "🗑️ Удаление службы родительского контроля...",
     uninstallSuccess: "✅ Служба успешно удалена!",
-    uninstallError: '❌ Ошибка удаления службы',
+    uninstallError: "❌ Ошибка удаления службы",
     startupInit: "📂 Добавление в автозагрузку...",
     startupSuccess: "✅ Добавлено в автозагрузку!",
-    startupFailed: '⚠️ Не получилось добавить в автозагрузку',
+    startupFailed: "⚠️ Не получилось добавить в автозагрузку",
     manually: "   Вы можете попробовать добавить в папку автозагрузки вручную",
     full: "=== Установка родительского контроля ===\n",
     complete: "\n✅ Установка завершена!",
-    boot: "Сервис будет запускаться автоматически при загрузке системы."
-  }
+    boot: "Сервис будет запускаться автоматически при загрузке системы.",
+  },
+  update: {
+    title: "\n\x1b[1m\x1b[36m🔧 СКРИПТ УДАЛЕННОГО ОБНОВЛЕНИЯ АГЕНТА",
+    noIndicate: "Укажите --scan или --ip <адрес>",
+    error: "\x1b[31m❌",
+    warn: "\x1b[33m⚠️",
+    ok: "\x1b[32m✅",
+    end: "\x1b[0m\n",
+    text: "\x1b[36m•\x1b[0m",
+    appPath: "Путь приложения: ",
+    smbPath: "SMB-путь: ",
+    isTargetActual:
+      "Убедитесь, что на целевом ПК запущена актуальная версия агента",
+    pathReject: "Не удалось получить путь приложения на ",
+    pathRequest: "Запрос пути установки приложения...",
+    simulate: "РЕЖИМ ПРОСМОТРА (--dry-run) — никаких реальных действий",
+    scanMode: "Режим: сканирование сети",
+    scanNull: "Не найдено ни одного ПК с запущенным приложением",
+    noTargets: "Нет целевых ПК для обновления",
+    targets: "Целевые ПК: ",
+    noLocal: "Не удалось определить локальную сеть",
+    processTimeEdge: "Это может занять до ",
+    findPC: "Найден ПК: ",
+    copy: "Копирование ",
+    copied: "Скопировано: ",
+    pcUpd: "Обновление ПК: ",
+    ping: "Проверка доступности...",
+    pingOk: " доступен",
+    hasAdmin: "Проверка административного доступа...",
+    hasAccess: "Есть доступ к ",
+    hasNtAccess: "Нет доступа к ",
+    noPing: " не отвечает на порту ",
+    noPingHint: "Возможно, приложение не запущено или ПК выключен",
+    filesTo: " файлов на ",
+    files: " файлов",
+    errors: "Ошибок: ",
+    wasScan: "Было бы скопировано ",
+    more: "  ... и ещё ",
+    withErrors: "с ошибками",
+    mkDirErr: "Не удалось создать папку ",
+    checkPerms: "Убедитесь, что у вас есть права администратора на целевом ПК",
+    checkPermsAndAccess:
+      "Убедитесь, что у вас права администратора и включен общий доступ к C$",
+    copyErr: "Ошибка копирования ",
+    npmI: "Был бы выполнен: npm install в ",
+    npmInstall: "Установка зависимостей (npm install) на ",
+    npmInstallSkipped: "Установка зависимостей пропущена (--no-deps)",
+    npmInstallErr: "Ошибка npm install: ",
+    npmNotInstall: "Установка зависимостей не удалась",
+    npmBeenInstall: "Зависимости установлены",
+    serviceRestart: "Была бы перезапущена служба ",
+    serviceRestartSkipped: "Перезапуск службы пропущен (--no-restart)",
+    serviceRestartErr: "Не удалось перезапустить службу",
+    serviceStart: "Запускаю службу ",
+    serviceStartErr: "Ошибка запуска: ",
+    serviceStop: "Останавливаю службу ",
+    serviceStopErr: "Ошибка остановки: ",
+    serviceStopped: "Служба остановлена",
+    serviceStarted: "Служба запущена",
+    on: " на ",
+    end: " завершено",
+    success: "ГОТОВО: успешно ",
+  },
+  discovery: {
+    socketErr: "Ошибка сокетов: ",
+    port: "Запущен на порту ",
+    findPriory: "Уступаем обнаруженному приоритетному FRP-мастеру: ",
+    master: "FRP-мастер: ",
+    node: "Узел ",
+    offed: " отключился",
+    findMaster: "FRP-мастер отключился, запускаю выборы...",
+    iAmMaster: "Я новый FRP-мастер!",
+    newMaster: "Новый FRP-мастер: ",
+    iFirst: "Я FRP-мастер (первый в сети)",
+  },
 };
 
 export function getWordsWithNumsCompletion(
@@ -283,18 +382,27 @@ export function getWordsWithNumsCompletion(
   return `${divisionRemainder ? completions[0] : divisionRemainder2 ? completions[1] : completions[2]}`;
 }
 
-  const logWithTime = (seconds) => {
-    const rounded = Math.round(seconds);
-    const secs = rounded % 60;
-    const minutes = (rounded - secs) / 60;
-    const mins = minutes % 60;
-    const hrs = (minutes - mins) / 60;
-    const hourLog = hrs > 0 ? `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ["", "а", "ов"])} ` : ''
-    const minsLog = mins > 0 || (hrs > 0 && secs > 0) ? `${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)} ` : ''
-    const secsLog = secs > 0 ? `${secs} ${LOGS.base.second}${getWordsWithNumsCompletion(secs)}` : ''
+export const logWithTime = (seconds) => {
+  const rounded = Math.round(seconds);
+  const secs = rounded % 60;
+  const minutes = (rounded - secs) / 60;
+  const mins = minutes % 60;
+  const hrs = (minutes - mins) / 60;
+  const hourLog =
+    hrs > 0
+      ? `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ["", "а", "ов"])} `
+      : "";
+  const minsLog =
+    mins > 0 || (hrs > 0 && secs > 0)
+      ? `${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)} `
+      : "";
+  const secsLog =
+    secs > 0
+      ? `${secs} ${LOGS.base.second}${getWordsWithNumsCompletion(secs)}`
+      : "";
 
-    return `${hourLog}${minsLog}${secsLog}`;
-  }
+  return `${hourLog}${minsLog}${secsLog}`;
+};
 
 export const PATHS = {
   library: "node_modules/@qiudaomao/node-frp/src/cli.js",
@@ -309,18 +417,61 @@ export const PATHS = {
     sendMess: (message, title, button) =>
       `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${message}', '${title}', '${button}', 'Warning')"`,
     shutdownWin: (seconds, mess = false) =>
-      `shutdown /s /t ${seconds} ${mess ? `/c "${LOGS.base.shutdownTimeout} ${logWithTime(seconds)}"` : ''}`,
+      `shutdown /s /t ${seconds} ${mess ? `/c "${LOGS.base.shutdownTimeout} ${logWithTime(seconds)}"` : ""}`,
     shutdown: (timeout) => `shutdown -h +${timeout}`,
   },
 };
 
-const SECOND = 1000
-const MINUTE = SECOND * 60
-const HOUR = MINUTE * 60
-const DAY = HOUR * 24
+const SECOND = 1000;
+const MINUTE = SECOND * 60;
+const HOUR = MINUTE * 60;
+const DAY = HOUR * 24;
 
-export const TIMES = { SECOND, MINUTE, HOUR, DAY }
+export const TIMES = { SECOND, MINUTE, HOUR, DAY };
 
-export const FRP_NEED_RESTART_ERRORS = [
-  'Не найдено строки об активности...',
-]
+export const TIMES_COMPLETIONS = {
+  SECOND: { start: " секунд", end: ["ы", "", ""] },
+  MINUTE: { start: " минут", end: ["ы", "", ""] },
+  HOUR: { start: " час", end: ["а", "ов", "ов"] },
+  DAY: { start: " д", end: ["ня", "ней", "ней"] },
+};
+
+export const FRP_NEED_RESTART_ERRORS = ["Не найдено строки об активности..."];
+
+export const EXCLUDE_PATTERNS = [
+  "node_modules",
+  ".git",
+  ".vscode",
+  "static",
+  "scripts",
+  "frpcHistory",
+  "frpc.yaml",
+  ".env",
+  "package-lock.json",
+  "debug-startup.log",
+  "service.log",
+  "*.log",
+];
+
+export const UPDATE_HELPER = `${LOGS.update.title}${LOGS.update.end}
+
+Сканирует сеть, находит ПК с запущенным приложением (порт ${CONFIG.serverPort}),
+копирует файлы через SMB и перезапускает службу.
+
+\x1b[1mИспользование:\x1b[0m
+  node scripts/update-agent.mjs [опции]
+
+\x1b[1mОпции:\x1b[0m
+  --ip <адрес>       Обновить конкретный ПК (можно несколько)
+  --scan             Сканировать локальную сеть
+  --dry-run          Только показать, что будет сделано
+  --no-restart       Не перезапускать службу
+  --no-deps          Не устанавливать npm install
+  --help             Показать справку
+
+\x1b[1mПримеры:\x1b[0m
+  node scripts/update-agent.mjs --scan
+  node scripts/update-agent.mjs --ip 192.168.1.105
+  node scripts/update-agent.mjs --scan --dry-run
+  node scripts/update-agent.mjs --ip 192.168.1.105 --no-restart
+`;

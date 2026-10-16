@@ -1,9 +1,7 @@
-import path from "path";
 import winston from "winston";
-
 import { CONFIG } from "#config";
 
-const {maxsize, maxFiles, tsFormat, logFile} = CONFIG
+const { maxsize, maxFiles, tsFormat, logFile } = CONFIG;
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: tsFormat }),
   winston.format.printf(({ timestamp, level, message }) => {
@@ -22,7 +20,6 @@ export const logger = winston.createLogger({
   ],
 });
 
-// Очистка лога при старте
 import fs from "fs";
 if (fs.existsSync(logFile)) {
   fs.unlinkSync(logFile);
