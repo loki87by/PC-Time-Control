@@ -127,7 +127,7 @@ export class PCTimeControl {
         this.startTime = this.timeHandler(state.startTime);
       }
 
-      if (state.sessionCount) {
+      if (state.sessionCount !== undefined) {
         this.sessionCount = state.sessionCount;
       }
 
@@ -233,7 +233,7 @@ export class PCTimeControl {
   }
 
   async checkIfLocked() {
-    if (this.startTime.getDay() !== new Date().getDay()) {
+    if (this.startTime.getDate() !== new Date().getDate()) {
       this.startTime = new Date();
     }
     try {

@@ -410,7 +410,7 @@ export const PATHS = {
   localhost: "127.0.0.1",
   commands: {
     logon: 'tasklist /FI "IMAGENAME eq LogonUI.exe" /NH',
-    lock: 'powershell -NoProfile -Command "rundll32.exe user32.dll,LockWorkStation"',
+    lock: 'powershell -NoProfile -Command "& {$task=Get-ScheduledTask -TaskName \'_PCTempLock_\' -ErrorAction SilentlyContinue; if($task){$task | Disable-ScheduledTask -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName \'_PCTempLock_\' -Confirm:$false -ErrorAction SilentlyContinue}; $action=New-ScheduledTaskAction -Execute \'rundll32.exe\' -Argument \'user32.dll,LockWorkStation\'; $principal=New-ScheduledTaskPrincipal -UserId \'INTERACTIVE\' -RunLevel Limited; Register-ScheduledTask -TaskName \'_PCTempLock_\' -Action $action -Principal $principal -Force | Start-ScheduledTask; Start-Sleep 2; Unregister-ScheduledTask -TaskName \'_PCTempLock_\' -Confirm:$false -ErrorAction SilentlyContinue}"',
     shutdownAbort: "shutdown /a",
     getPid: "netstat -ano | findstr",
     cleanPort: "taskkill /F /PID",
@@ -471,6 +471,8 @@ export const UPDATE_HELPER = `${LOGS.update.title}${LOGS.update.end}
   --dry-run          Только показать, что будет сделано
   --no-restart       Не перезапускать службу
   --no-deps          Не устанавливать npm install
+  --user <домен\пользователь>  Имя пользователя для SMB-доступа (пароль из SMB_PASSWORD env)
+  --fix-remote-uac  Отключить UAC remote restrictions на целевом ПК (требуется админ-доступ)
   --help             Показать справку
 
 \x1b[1mПримеры:\x1b[0m
@@ -478,4 +480,5 @@ export const UPDATE_HELPER = `${LOGS.update.title}${LOGS.update.end}
   node scripts/update-agent.mjs --ip 192.168.1.105
   node scripts/update-agent.mjs --scan --dry-run
   node scripts/update-agent.mjs --ip 192.168.1.105 --no-restart
+  node scripts/update-agent.mjs --ip 192.168.1.106 --user SON
 `;
