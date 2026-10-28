@@ -57,6 +57,8 @@ export const CONFIG = {
   timeShift: 3,
   // имя службы Windows
   serviceName: "PCTimeControl",
+  // имя пользователя Windows для блокировки (если не указано — определяется автоматически)
+  lockUserId: "Garik",
   // таймаут на поиск каждого из доступных устройств
   scanTimeout: 500,
   // таймаут на установку зависимостей

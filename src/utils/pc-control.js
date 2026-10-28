@@ -253,7 +253,9 @@ export class PCTimeControl {
     try {
       if (process.platform === "win32") {
         this.isLocked = true;
-        await execPromise(PATHS.commands.lock);
+        const lockUser = CONFIG.lockUserId || this.currentUser;
+        const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempLock_' /tr 'rundll32.exe user32.dll,LockWorkStation' /sc once /st 23:59 /ru ${lockUser} /f >$null 2>$null; schtasks /run /tn '_PCTempLock_' >$null 2>$null; Start-Sleep 2; schtasks /delete /tn '_PCTempLock_' /f >$null 2>$null"`;
+        await execPromise(cmd);
         logger.info(LOGS.control.lock);
       } else {
         logger.warn(LOGS.control.noWinLock);
