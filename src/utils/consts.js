@@ -451,6 +451,10 @@ export const EXCLUDE_PATTERNS = [
   "debug-startup.log",
   "service.log",
   "*.log",
+  ".gitignore",
+  "LICENSE",
+  "apiExample.js",
+  "toDo.md",
 ];
 
 export const UPDATE_HELPER = `${LOGS.update.title}${LOGS.update.end}
