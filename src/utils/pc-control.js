@@ -249,11 +249,25 @@ export class PCTimeControl {
     }
   }
 
+  async getActiveUser() {
+    try {
+      const { stdout } = await execPromise(
+        'powershell -NoProfile -Command "& {$u=((qwinsta | Select-String -Pattern \'[Аа]ктивно|[Aa]ctive\') -split \'\\s+\')[3]; if($u -and $u -ne \'Диск\' -and $u -ne \'Disc\'){Write-Host $u}}"',
+      );
+      const user = stdout?.trim();
+      return user || null;
+    } catch {
+      return null;
+    }
+  }
+
   async lockPC() {
     try {
       if (process.platform === "win32") {
         this.isLocked = true;
-        const lockUser = CONFIG.lockUserId || this.currentUser;
+        let lockUser = await this.getActiveUser();
+        if (!lockUser) lockUser = CONFIG.lockUserId || this.currentUser;
+        logger.info(`${LOGS.control.lock} (user: ${lockUser})`);
         const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempLock_' /tr 'rundll32.exe user32.dll,LockWorkStation' /sc once /st 23:59 /ru ${lockUser} /f >$null 2>$null; schtasks /run /tn '_PCTempLock_' >$null 2>$null; Start-Sleep 2; schtasks /delete /tn '_PCTempLock_' /f >$null 2>$null"`;
         await execPromise(cmd);
         logger.info(LOGS.control.lock);
@@ -313,15 +327,12 @@ export class PCTimeControl {
     }
   }
 
-  showMessage(message, title = CONFIG.msgTitle) {
+  async showMessage(message, title = CONFIG.msgTitle) {
     try {
       if (process.platform === "win32") {
-        const escapedMessage = message.replace(/"/g, '`"');
-        const cmd = PATHS.commands.sendMess(
-          escapedMessage,
-          title,
-          LOGS.base.msgButtonText,
-        );
+        const escapedMessage = message.replace(/'/g, "''");
+        const lockUser = await this.getActiveUser() || CONFIG.lockUserId || this.currentUser;
+        const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempMsg_' /tr 'powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(''${escapedMessage}'', ''${title}'', ''OK'', ''Warning'')\"' /sc once /st 23:59 /ru ${lockUser} /f >$null 2>$null; schtasks /run /tn '_PCTempMsg_' >$null 2>$null; Start-Sleep 3; schtasks /delete /tn '_PCTempMsg_' /f >$null 2>$null"`;
         exec(cmd, { windowsHide: true });
       } else {
         console.log(`\n${"=".repeat(50)}`);
