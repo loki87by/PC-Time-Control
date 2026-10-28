@@ -249,13 +249,18 @@ export class PCTimeControl {
     }
   }
 
-  async getActiveUser() {
+async getActiveUser() {
     try {
-      const { stdout } = await execPromise(
-        'powershell -NoProfile -Command "& {$u=((qwinsta | Select-String -Pattern \'[Аа]ктивно|[Aa]ctive\') -split \'\\s+\')[3]; if($u -and $u -ne \'Диск\' -and $u -ne \'Disc\'){Write-Host $u}}"',
-      );
-      const user = stdout?.trim();
-      return user || null;
+      const { stdout } = await execPromise("qwinsta");
+      const lines = stdout.split("\n");
+      for (const line of lines) {
+        if (line.trimStart().startsWith(">console") || /Active|��⨢��/.test(line)) {
+          const parts = line.trim().split(/\s+/);
+          // parts: [>console, USERNAME, ID, STATE, TYPE]
+          return parts[1] || null;
+        }
+      }
+      return null;
     } catch {
       return null;
     }
@@ -268,8 +273,15 @@ export class PCTimeControl {
         let lockUser = await this.getActiveUser();
         if (!lockUser) lockUser = CONFIG.lockUserId || this.currentUser;
         logger.info(`${LOGS.control.lock} (user: ${lockUser})`);
-        const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempLock_' /tr 'rundll32.exe user32.dll,LockWorkStation' /sc once /st 23:59 /ru ${lockUser} /f >$null 2>$null; schtasks /run /tn '_PCTempLock_' >$null 2>$null; Start-Sleep 2; schtasks /delete /tn '_PCTempLock_' /f >$null 2>$null"`;
-        await execPromise(cmd);
+
+        if (lockUser === this.currentUser) {
+          // Локальная блокировка — напрямую
+          exec("rundll32.exe user32.dll,LockWorkStation");
+        } else {
+          // Удалённая блокировка — через планировщик задач от имени другого пользователя
+          const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempLock_' /tr 'rundll32.exe user32.dll,LockWorkStation' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempLock_' *>$null; Start-Sleep 2; schtasks /delete /tn '_PCTempLock_' /f *>$null"`;
+          await execPromise(cmd);
+        }
         logger.info(LOGS.control.lock);
       } else {
         logger.warn(LOGS.control.noWinLock);
@@ -332,7 +344,7 @@ export class PCTimeControl {
       if (process.platform === "win32") {
         const escapedMessage = message.replace(/'/g, "''");
         const lockUser = await this.getActiveUser() || CONFIG.lockUserId || this.currentUser;
-        const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempMsg_' /tr 'powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(''${escapedMessage}'', ''${title}'', ''OK'', ''Warning'')\"' /sc once /st 23:59 /ru ${lockUser} /f >$null 2>$null; schtasks /run /tn '_PCTempMsg_' >$null 2>$null; Start-Sleep 3; schtasks /delete /tn '_PCTempMsg_' /f >$null 2>$null"`;
+        const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempMsg_' /tr 'powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(''${escapedMessage}'', ''${title}'', ''OK'', ''Warning'')\"' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempMsg_' *>$null; Start-Sleep 3; schtasks /delete /tn '_PCTempMsg_' /f *>$null"`;
         exec(cmd, { windowsHide: true });
       } else {
         console.log(`\n${"=".repeat(50)}`);
