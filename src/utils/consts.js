@@ -410,7 +410,7 @@ export const PATHS = {
   localhost: "127.0.0.1",
   commands: {
     logon: 'tasklist /FI "IMAGENAME eq LogonUI.exe" /NH',
-    lock: 'powershell -NoProfile -Command "& {$id=(qwinsta /? 2>$null | Out-String).Length; $sess=((qwinsta | Select-String -Pattern \'^[> ]([0-9]+)\\s+(\\S+)\\s+([a-z]+)\' | Where-Object {$_.Matches.Groups[3].Value -eq \'Active\'}).Matches.Groups[1].Value); if($sess){cmd /c \'tscon.exe \'+$sess+\' /dest:console\'}else{rundll32.exe user32.dll,LockWorkStation}}"',
+    lock: 'powershell -NoProfile -Command "& {$u=((qwinsta | Select-String -Pattern \'Активно\' | Select-String -Pattern \'>\') -split \'\\s+\')[3]; if(!$u){$u=((qwinsta | Select-String -Pattern \'Active\' | Select-String -Pattern \'>\') -split \'\\s+\')[3]}; if($u){schtasks /create /tn \'_PCTempLock_\' /tr \'rundll32.exe user32.dll,LockWorkStation\' /sc once /st 23:59 /ru $u /f >$null 2>$null; schtasks /run /tn \'_PCTempLock_\' >$null 2>$null; Start-Sleep 2; schtasks /delete /tn \'_PCTempLock_\' /f >$null 2>$null}else{rundll32.exe user32.dll,LockWorkStation}}"',
     shutdownAbort: "shutdown /a",
     getPid: "netstat -ano | findstr",
     cleanPort: "taskkill /F /PID",
