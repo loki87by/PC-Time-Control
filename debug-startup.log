@@ -1,6 +1,7 @@
-[2026-10-15T09:45:45.590Z] STARTING...
-PROJECT_ROOT: undefined
-__dirname: C:\personal\dev\code\personal\kids-monitor
-process.cwd(): C:\personal\dev\code\personal\kids-monitor
-Title: РОДИТЕЛЬСКИЙ КОНТРОЛЬ
-Title: frpc.yaml
+[2026-10-28T13:20:22.399Z] ПОГНАЛИ...
+
+Рут-директория: undefined
+Папка проекта: C:\personal\dev\code\personal\kids-monitor
+Директория процесса: C:\personal\dev\code\personal\kids-monitor
+Заголовок оповещений пользователя: РОДИТЕЛЬСКИЙ КОНТРОЛЬ
+Конфиг-файл frpc: frpc.yaml

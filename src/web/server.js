@@ -1,18 +1,16 @@
 import http from "http";
 import os from "os";
-import path from "path";
 import { fileURLToPath } from "url";
 import { exec } from "child_process";
-
 import { Routes } from "#web/routes";
 import { NetworkScanner } from "#web/scanner";
 import { PCClient } from "#web/client";
+import { NodeDiscovery } from "#utils/nodeDiscovery";
 import { CONFIG } from "#config";
 import { LOGS, PATHS } from "#consts";
 import { logger } from "#utils/logger";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export class WebServer {
   constructor(pcControl, gracefulShutdown) {
@@ -27,27 +25,42 @@ export class WebServer {
       // '192.168.1.105': 'Tommy\'s Laptop',
       // '192.168.1.112': 'Sarah\'s Desktop',
     });
-    this.gracefulShutdown = gracefulShutdown
+    this.gracefulShutdown = gracefulShutdown;
+    this.nodeDiscovery = new NodeDiscovery();
+    this._onFrpMasterChange = null;
   }
 
   async start() {
     this.server = http.createServer((req, res) => {
       this.handleRequest(req, res);
     });
+    this.nodeDiscovery.start({
+      onFrpMasterChange: (isMaster) => {
+        logger.info(
+          `${LOGS.web.frpStatusChange}${isMaster ? LOGS.web.iAm : LOGS.web.iNot}${LOGS.discovery.master}`,
+        );
+        if (this._onFrpMasterChange) this._onFrpMasterChange(isMaster);
+      },
+      onNodesChange: (nodes) => {
+        this.scanner.discoveryNodes = Array.from(nodes.values());
+      },
+    });
 
     return new Promise((resolve, reject) => {
       this.server.listen(this.port, "0.0.0.0", () => {
         logger.info(`${LOGS.web.started} ${this.port}`);
-        const check = http.get(`http://127.0.0.1:${this.port}`, (res) => {
-          logger.info(`✅ Сервер отвечает на 127.0.0.1:${this.port}`);
-        });
+        const check = http.get(
+          `http://${PATHS.localhost}:${this.port}`,
+          (res) => {
+            logger.info(`${LOGS.web.response}${PATHS.localhost}:${this.port}`);
+          },
+        );
         check.on("error", (err) => {
-          logger.error(`❌ Сервер НЕ отвечает: ${err.message}`);
+          logger.error(`${LOGS.web.reject}${err.message}`);
         });
         setTimeout(() => this.scanNetwork(), 1000);
         resolve();
       });
-
       this.server.on("error", (err) => {
         if (err.code === "EADDRINUSE") {
           const log = LOGS.base.usedPort(this.port);
@@ -73,6 +86,7 @@ export class WebServer {
         "/scan": () => this.routes.scan(req, res),
         "/api/status": () => this.routes.status(req, res),
         "/api/refresh": () => this.routes.refresh(req, res),
+        "/api/app-path": () => this.routes.appPath(req, res),
         "/admin/exit": () => this.gracefulShutdown(),
       };
 
@@ -138,6 +152,10 @@ export class WebServer {
   }
 
   stop() {
+    if (this.nodeDiscovery) {
+      this.nodeDiscovery.stop();
+    }
+
     if (this.server) {
       this.server.closeAllConnections?.();
       this.server.close();
@@ -152,6 +170,7 @@ export class WebServer {
           const lines = stdout.split("\n");
           for (const line of lines) {
             const parts = line.trim().split(/\s+/);
+
             if (parts.length > 4) {
               const pid = parts[parts.length - 1];
               exec(`${PATHS.commands.cleanPort} ${pid}`);

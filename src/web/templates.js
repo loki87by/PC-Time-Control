@@ -1,12 +1,12 @@
 import { COMMON, INDEX, CONTROL } from "#web/styles";
-import { LOGS, PATHS, getWordsWithNumsCompletion } from "#consts";
+import { LOGS, getWordsWithNumsCompletion } from "#consts";
 
 export class Templates {
   static logWithTime(minutes) {
     const rounded = Math.round(minutes);
+
     if (rounded < 60)
       return `${rounded} ${LOGS.base.minute}${getWordsWithNumsCompletion(rounded)}`;
-
     const mins = rounded % 60;
     const hrs = (rounded - mins) / 60;
     return `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ["", "а", "ов"])} ${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)}`;
@@ -20,14 +20,15 @@ export class Templates {
               ([ip, info]) => `
         <div class="pc-card" onclick="location.href='/control?ip=${ip}'">
           <div class="pc-info">
-            <div class="pc-name">💻 ${info.hostname}</div>
-            <div class="pc-ip">${ip}</div>
+            <div class="pc-name">💻 ${info.hostname}${info.frpMaster ? " 🌐" : ""}</div>
+            <div class="pc-ip">${ip}${info.frpMaster ? " (FRP)" : ""}</div>
             ${info.currentUser ? `<div class="pc-user">👤 ${info.currentUser}</div>` : ""}
           </div>
-          <span class="status-badge ${info.locked ? "status-locked" : "status-online"}">
-            ${info.locked ? LOGS.user.lock : LOGS.user.online}
+          <span class="status-badge ${info.locked ? "status-locked" : info.status === "offline" ? "status-offline" : "status-online"}">
+            ${info.locked ? LOGS.user.lock : info.status === "offline" ? LOGS.user.offline : LOGS.user.online}
           </span>
-        </div>`)
+        </div>`,
+            )
             .join("")
         : `<div class="empty-state">
             <span class="emoji">🔍</span>
@@ -71,19 +72,20 @@ export class Templates {
   static control(ip, info) {
     const statusClass = info.locked ? "status-locked" : "status-unlocked";
     const statusText = info.locked ? LOGS.user.lock : LOGS.user.unlock;
-    const shutdownAbort = JSON.parse(info.shutdownAbort)
+    const shutdownAbort = JSON.parse(info.shutdownAbort);
     const lockTimesDisplay =
       info.lockTimes?.length > 0 ? info.lockTimes.join(", ") : LOGS.user.absent;
-    const shutdownDisplay =
-      info.shutdownTime ? `${info.shutdownTime}${shutdownAbort ? ` (${LOGS.user.cancel})` : ''}` : LOGS.remote.unset;
-    const canUnlock = JSON.parse(info.canUnlock.split(',')[0].split('=')[1])
-    const timeRemainingDisplay = info.timeRemaining && info.timeRemaining !== LOGS.user.unlimit
-      ? `<div class="info-row">
+    const shutdownDisplay = info.shutdownTime
+      ? `${info.shutdownTime}${shutdownAbort ? ` (${LOGS.user.cancel})` : ""}`
+      : LOGS.remote.unset;
+    const canUnlock = JSON.parse(info.canUnlock.split(",")[0].split("=")[1]);
+    const timeRemainingDisplay =
+      info.timeRemaining && info.timeRemaining !== LOGS.user.unlimit
+        ? `<div class="info-row">
         <span class="info-label">${LOGS.user.timeRemaining}</span>
         <span class="info-value">${info.timeRemaining}</span>
       </div>`
-      : "";
-
+        : "";
     const actionButtons = ` <div class="card">
         <div class="card-title">${LOGS.user.now}</div>
         <button onclick="doAction('lock')" class="btn btn-lock">${LOGS.user.lockNow}</button>
@@ -92,7 +94,6 @@ export class Templates {
         <button onclick="confirmShutdown()" class="btn btn-shutdown">${LOGS.user.shutdown}</button>
       </div>
     `;
-
     const sessionBreak =
       info.sessionLimit && info.sessionLimit !== LOGS.user.unlimit
         ? ` <div class="card">
@@ -108,7 +109,6 @@ export class Templates {
         </div>
       `
         : "";
-
     return `<!DOCTYPE html>
 <html>
 <head>
@@ -132,8 +132,8 @@ export class Templates {
       <div class="ip">${ip}</div>
       ${info.currentUser ? `<div class="user">👤 ${info.currentUser}</div>` : ""}
       <span class="status-badge ${statusClass}">${statusText}</span>
-      ${info.usageTime ? `<div style="margin-top: 5px;" class="ip">${LOGS.user.dailyUsage}: ${info.usageTime}</div>` : ''}
-      ${info.sessionTime ? `<div class="ip">${LOGS.user.sessionUsage}: ${info.sessionTime}</div>` : ''}
+      ${info.usageTime ? `<div style="margin-top: 5px;" class="ip">${LOGS.user.dailyUsage}: ${info.usageTime}</div>` : ""}
+      ${info.sessionTime ? `<div class="ip">${LOGS.user.sessionUsage}: ${info.sessionTime}</div>` : ""}
       <button onclick="refresh()" class="btn btn-lock">${LOGS.user.refresh}</button>
       <button onclick="resetUsageTime()" class="btn btn-warning">${LOGS.user.resetUsageTime}</button>
       <button onclick="resetSessionTime()" class="btn btn-warning">${LOGS.user.resetSessionTime}</button>
@@ -410,15 +410,15 @@ export class Templates {
   }
 
   static delayShutdownSection(time, abort) {
-    const defVal = time && !abort ? time : '21:00'
-    const cancelBtn = `<button onclick="cancelShutdown()" class="btn btn-lock">${LOGS.user.delayShutdownAbort}</button>`
-    const condition = time && time !== LOGS.remote.unset && !abort
+    const defVal = time && !abort ? time : "21:00";
+    const cancelBtn = `<button onclick="cancelShutdown()" class="btn btn-lock">${LOGS.user.delayShutdownAbort}</button>`;
+    const condition = time && time !== LOGS.remote.unset && !abort;
     return `
       <div class="card">
         <div class="card-title">🕐 ${LOGS.user.delayShutdown}</div>
         <input type="time" id="shutdownTimeInput" value=${defVal}>
         <button onclick="delayedShutdown()" class="btn btn-shutdown">${LOGS.user.delayShutdownSave}</button>
-        ${condition ? cancelBtn : ''}        
+        ${condition ? cancelBtn : ""}        
       </div>
     `;
   }

@@ -11,14 +11,18 @@ export class Routes {
   async index(req, res) {
     const pcs = Array.from(this.webServer.discoveredPCs.entries());
     const isServerRunning = await this.webServer.checkServerRunning();
-    const html = Templates.index(pcs, this.webServer.lastScanTime, isServerRunning);
+    const html = Templates.index(
+      pcs,
+      this.webServer.lastScanTime,
+      isServerRunning,
+    );
     this.sendHTML(res, html);
   }
 
   async control(req, res) {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const ip = url.searchParams.get("ip");
-    
+
     if (!ip) {
       this.redirect(res, "/");
       return;
@@ -32,7 +36,7 @@ export class Routes {
 
     const client = new PCClient(ip);
     info.locked = (await client.getStatus()) === LOGS.remote.lock_m;
-    info.currentUser = await client.getCurrentUser() || info.currentUser;
+    info.currentUser = (await client.getCurrentUser()) || info.currentUser;
     info.usageLimit = await client.getUsageLimit();
     info.sessionLimit = await client.getSessionLimit();
     info.sessionBreak = await client.getSessionBreak();
@@ -54,16 +58,35 @@ export class Routes {
   }
 
   async status(req, res) {
-    const pcs = Array.from(this.webServer.discoveredPCs.entries()).map(([ip, info]) => ({
-      ip,
-      ...info,
-      locked: info.locked || false
-    }));
+    const pcs = Array.from(this.webServer.discoveredPCs.entries()).map(
+      ([ip, info]) => ({
+        ip,
+        ...info,
+        locked: info.locked || false,
+      }),
+    );
 
     this.sendJSON(res, {
       pcs,
       lastScan: this.webServer.lastScanTime,
-      scanning: this.webServer.scanning
+      scanning: this.webServer.scanning,
+    });
+  }
+
+  async appPath(req, res) {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const ip = url.searchParams.get("ip");
+
+    if (!ip) {
+      this.sendJSON(res, { success: false, response: "IP required" }, 400);
+      return;
+    }
+
+    const client = new PCClient(ip);
+    const result = await client.getAppPath();
+    this.sendJSON(res, {
+      success: !!result,
+      response: result || "Not available",
     });
   }
 
@@ -74,17 +97,21 @@ export class Routes {
 
   async action(req, res) {
     let body = "";
-    req.on("data", chunk => body += chunk);
+    req.on("data", (chunk) => (body += chunk));
     req.on("end", async () => {
       try {
         const data = JSON.parse(body);
         const client = new PCClient(data.ip, 5000);
         const result = await this.executeAction(client, data);
-        
-        if (result.success && data.action === "lock" && this.webServer.discoveredPCs.has(data.ip)) {
+
+        if (
+          result.success &&
+          data.action === "lock" &&
+          this.webServer.discoveredPCs.has(data.ip)
+        ) {
           this.webServer.discoveredPCs.get(data.ip).locked = true;
         }
-        
+
         this.sendJSON(res, result);
       } catch (err) {
         this.sendJSON(res, { success: false, response: err.message }, 500);
@@ -109,7 +136,7 @@ export class Routes {
       reset_session_time: () => client.resetSessionTime(),
       clear_usage_limit: () => client.clearUsageLimit(),
       clear_lock_times: () => client.clearLockTimes(),
-      clear_all: () => client.clearAll()
+      clear_all: () => client.clearAll(),
     };
 
     const action = actionMap[data.action];

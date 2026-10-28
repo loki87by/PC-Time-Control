@@ -3,10 +3,23 @@ import net from "net";
 import fs from "fs";
 import os from "os";
 import path from "path";
-//import { createRequire } from "module";
-import { spawn, execSync } from "child_process";
+import { spawn } from "child_process";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
+import { WebServer } from "#web/server";
+import { CONFIG } from "#config";
+import {
+  LOGS,
+  PATHS,
+  TIMES,
+  FRP_NEED_RESTART_ERRORS,
+  TIMES_COMPLETIONS,
+  getWordsWithNumsCompletion,
+} from "#consts";
+import { logger } from "#utils/logger";
+import { PCTimeControl } from "#utils/pc-control";
+import { RemoteControlServer } from "#utils/remote-server";
+import { FrpConnectManager } from "#utils/frpConnectManager";
 
 dotenv.config();
 
@@ -17,26 +30,18 @@ process.chdir(PROJECT_ROOT);
 
 const debugLog = path.join(
   process.env.PROJECT_ROOT || __dirname,
-  "debug-startup.log",
+  CONFIG.debugFile,
 );
-fs.writeFileSync(debugLog, `[${new Date().toISOString()}] STARTING...\n`);
-fs.appendFileSync(debugLog, `PROJECT_ROOT: ${process.env.PROJECT_ROOT}\n`);
-fs.appendFileSync(debugLog, `__dirname: ${__dirname}\n`);
-fs.appendFileSync(debugLog, `process.cwd(): ${process.cwd()}\n`);
+fs.writeFileSync(debugLog, `[${new Date().toISOString()}]${LOGS.root.start}`);
+fs.appendFileSync(debugLog, `${LOGS.root.pr}${process.env.PROJECT_ROOT}`);
+fs.appendFileSync(debugLog, `${LOGS.root.dirname}${__dirname}`);
+fs.appendFileSync(debugLog, `${LOGS.root.cwd}${process.cwd()}`);
 
 const frpConfigPath = path.join(PROJECT_ROOT, PATHS.config);
 const currentStatePath = path.join(PROJECT_ROOT, CONFIG.stateFile);
 
-import { WebServer } from "#web/server";
-import { CONFIG } from "#config";
-import { LOGS, PATHS, TIMES, FRP_NEED_RESTART_ERRORS } from "#consts";
-import { logger } from "#utils/logger";
-import { PCTimeControl } from "#utils/pc-control";
-import { RemoteControlServer } from "#utils/remote-server";
-import { FrpConnectManager } from "#utils/frpConnectManager";
-
-fs.appendFileSync(debugLog, `Title: ${CONFIG.msgTitle}\n`);
-fs.appendFileSync(debugLog, `Title: ${PATHS.config}\n`);
+fs.appendFileSync(debugLog, `${LOGS.root.msgTitle}${CONFIG.msgTitle}`);
+fs.appendFileSync(debugLog, `${LOGS.root.configFile}${PATHS.config}`);
 
 let control = null;
 let remoteServer = null;
@@ -44,6 +49,7 @@ let webServer = null;
 let frpProcess = null;
 let frpSStartTryCnt = 0;
 let frpConnectUpdateStarted = false;
+let isFrpMaster = false;
 
 function getFrpcConf() {
   const conf = fs.readFileSync(frpConfigPath, "utf8");
@@ -65,8 +71,8 @@ function updFrpcConf(new_token) {
   const { confArr, tokenIndex, conf } = getFrpcConf();
   confArr.splice(tokenIndex, 1, `token: "${new_token}"`);
   const logDirPath = path.join(
-    frpConfigPath.replace("frpc.yaml", ""),
-    "frpcHistory",
+    frpConfigPath.replace(PATHS.config, ""),
+    CONFIG.frpcArchive,
   );
 
   if (!fs.existsSync(logDirPath)) {
@@ -84,28 +90,29 @@ async function frpConnectUpdater() {
   if (frpConnectUpdateStarted || !CONFIG.hasFrpcApi) return;
 
   frpConnectUpdateStarted = true;
-  const response = await fetch(`${process.env.BASE}/get_frp_start_time`, {
-    method: "GET",
-  });
+  const response = await fetch(
+    `${process.env.BASE}${CONFIG.frpcGetTimeRoute}`,
+    {
+      method: "GET",
+    },
+  );
   const res = await response.json();
 
   if (!res.success && !res.data) {
-    logger.error(`something wrong: ${String(res)}`);
+    logger.error(`${LOGS.frp.getTimeErr}${String(res)}`);
   } else {
     if (!isFinite(+res.data)) {
       const needRestartFrpServer = FRP_NEED_RESTART_ERRORS.includes(res.data);
       if (!needRestartFrpServer) {
-        logger.warn(`something wrong: ${res.data}`);
+        logger.warn(`${LOGS.frp.unknownAnswer}${res.data}`);
       } else {
         const restarted = await fetch(
-          `${process.env.BASE}/restart_frp_service`,
-          {
-            method: "GET",
-          },
+          `${process.env.BASE}${CONFIG.frpcRestartRoute}`,
+          { method: "GET" },
         );
         const { success, data } = restarted;
 
-        if (!success || !data) logger.warn(`frpc restart error: ${data}`);
+        if (!success || !data) logger.warn(`${LOGS.frp.restartErr}${data}`);
         frpConnectUpdateStarted = false;
         return setTimeout(startFRPClient, 5000);
       }
@@ -118,8 +125,10 @@ async function frpConnectUpdater() {
         })
         .filter((i) => i.val > 0)
         .sort((a, b) => a.val - b.val);
+      const ends = TIMES_COMPLETIONS[times[0].k].end;
+      const start = TIMES_COMPLETIONS[times[0].k].start;
       logger.info(
-        `frp-server started more than ${times[0].val} ${times[0].k.toLowerCase()}s ago...`,
+        `${LOGS.frp.started}${times[0].val}${start}${getWordsWithNumsCompletion(times[0].val, ends)}`,
       );
 
       const startTime = getStateTime();
@@ -146,6 +155,10 @@ async function frpConnectUpdater() {
 }
 
 function startFRPClient() {
+  if (!isFrpMaster) {
+    logger.info(LOGS.frp.noMaster);
+    return;
+  }
   if (!fs.existsSync(frpConfigPath)) {
     logger.warn(LOGS.frp.notExistConfig);
     return;
@@ -156,7 +169,6 @@ function startFRPClient() {
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
     windowsHide: true,
-    // shell: true, // may be need uncomment when started local
   });
   frpProcess.stdout.on("data", (data) => {
     logger.info(`FRP: ${data.toString().trim()}`);
@@ -208,8 +220,38 @@ async function main() {
     logger.info(LOGS.base.portLog(LOGS.base.remoteStarted, CONFIG.serverPort));
 
     webServer = new WebServer(control, gracefulShutdown);
+
+    webServer._onFrpMasterChange = (amIMaster) => {
+      if (amIMaster === isFrpMaster) return;
+      isFrpMaster = amIMaster;
+
+      if (amIMaster) {
+        logger.info(LOGS.frp.newMaster);
+        frpSStartTryCnt = 0;
+        startFRPClient();
+      } else {
+        logger.info(LOGS.frp.changeMaster);
+        if (frpProcess) {
+          frpProcess.kill();
+          frpProcess = null;
+        }
+      }
+    };
+
     await webServer.start();
-    startFRPClient();
+    setTimeout(() => {
+      if (!webServer.nodeDiscovery.getFrpMasterIp()) {
+        logger.info(LOGS.frp.chooseMaster);
+        if (!isFrpMaster) {
+          isFrpMaster = true;
+          webServer.nodeDiscovery._becomeMaster();
+          frpSStartTryCnt = 0;
+          startFRPClient();
+        }
+      } else if (isFrpMaster) {
+        startFRPClient();
+      }
+    }, 2000);
 
     const localIP = getLocalIP();
     logger.info(LOGS.base.started);

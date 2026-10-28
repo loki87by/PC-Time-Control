@@ -19,7 +19,7 @@ export class PCTimeControl {
     this.warningsSent = new Set();
     this.monitorInterval = null;
     this.sessionCount = 0;
-    this.sessions = [];// or Set???
+    this.sessions = [];
     this.stateLoaded = false;
     this.isShuttingDown = false;
     this.sessionLimit = null;
@@ -100,6 +100,7 @@ export class PCTimeControl {
     if (CONFIG.monitoredUsers.length > 0) {
       return CONFIG.monitoredUsers.includes(this.currentUser);
     }
+
     if (CONFIG.exemptUsers.length > 0) {
       return !CONFIG.exemptUsers.includes(this.currentUser);
     }
@@ -126,7 +127,7 @@ export class PCTimeControl {
         this.startTime = this.timeHandler(state.startTime);
       }
 
-      if (state.sessionCount) {
+      if (state.sessionCount !== undefined) {
         this.sessionCount = state.sessionCount;
       }
 
@@ -232,7 +233,7 @@ export class PCTimeControl {
   }
 
   async checkIfLocked() {
-    if (this.startTime.getDay() !== new Date().getDay()) {
+    if (this.startTime.getDate() !== new Date().getDate()) {
       this.startTime = new Date();
     }
     try {
@@ -248,11 +249,39 @@ export class PCTimeControl {
     }
   }
 
+async getActiveUser() {
+    try {
+      const { stdout } = await execPromise("qwinsta");
+      const lines = stdout.split("\n");
+      for (const line of lines) {
+        if (line.trimStart().startsWith(">console") || /Active|��⨢��/.test(line)) {
+          const parts = line.trim().split(/\s+/);
+          // parts: [>console, USERNAME, ID, STATE, TYPE]
+          return parts[1] || null;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async lockPC() {
     try {
       if (process.platform === "win32") {
         this.isLocked = true;
-        exec(PATHS.commands.lock);
+        let lockUser = await this.getActiveUser();
+        if (!lockUser) lockUser = CONFIG.lockUserId || this.currentUser;
+        logger.info(`${LOGS.control.lock} (user: ${lockUser})`);
+
+        if (lockUser === this.currentUser) {
+          // Локальная блокировка — напрямую
+          exec("rundll32.exe user32.dll,LockWorkStation");
+        } else {
+          // Удалённая блокировка — через планировщик задач от имени другого пользователя
+          const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempLock_' /tr 'rundll32.exe user32.dll,LockWorkStation' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempLock_' *>$null; Start-Sleep 2; schtasks /delete /tn '_PCTempLock_' /f *>$null"`;
+          await execPromise(cmd);
+        }
         logger.info(LOGS.control.lock);
       } else {
         logger.warn(LOGS.control.noWinLock);
@@ -310,15 +339,12 @@ export class PCTimeControl {
     }
   }
 
-  showMessage(message, title = CONFIG.msgTitle) {
+  async showMessage(message, title = CONFIG.msgTitle) {
     try {
       if (process.platform === "win32") {
-        const escapedMessage = message.replace(/"/g, '`"');
-        const cmd = PATHS.commands.sendMess(
-          escapedMessage,
-          title,
-          LOGS.base.msgButtonText,
-        );
+        const escapedMessage = message.replace(/'/g, "''");
+        const lockUser = await this.getActiveUser() || CONFIG.lockUserId || this.currentUser;
+        const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempMsg_' /tr 'powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(''${escapedMessage}'', ''${title}'', ''OK'', ''Warning'')\"' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempMsg_' *>$null; Start-Sleep 3; schtasks /delete /tn '_PCTempMsg_' /f *>$null"`;
         exec(cmd, { windowsHide: true });
       } else {
         console.log(`\n${"=".repeat(50)}`);
@@ -401,11 +427,18 @@ export class PCTimeControl {
       logger.info(LOGS.control.sessionStartedOnMonitor);
     }
 
+    let lockAttemptTicks = 0;
+
     this.monitorInterval = setInterval(async () => {
       try {
         const actualLocked = await this.checkIfLocked();
 
         if (this.isLocked && !actualLocked) {
+          if (lockAttemptTicks < 2) {
+            lockAttemptTicks++;
+            return;
+          }
+          lockAttemptTicks = 0;
           this.isLocked = false;
           logger.info(LOGS.control.unlock);
 
@@ -434,10 +467,12 @@ export class PCTimeControl {
             );
           }
         } else if (!this.isLocked && actualLocked) {
+          lockAttemptTicks = 0;
           logger.info(LOGS.control.lock);
           this.isLocked = true;
         }
         if (!this.isLocked) {
+          lockAttemptTicks = 0;
           await this.checkLimitsAndWarnings();
         }
         if (this.isLocked && this.isOnBreak) {
@@ -546,7 +581,7 @@ export class PCTimeControl {
   }
 
   getUsageMinutes() {
-    const now = Date.now()
+    const now = Date.now();
     return !this.sessionCount
       ? Math.floor((now - this.startTime) / 60000)
       : this.sessionCount * this.sessionLimit + this.getSessionUsageMinutes();

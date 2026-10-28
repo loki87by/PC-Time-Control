@@ -10,7 +10,7 @@ export class FrpConnectManager {
     this.id = null;
     this.token = null;
     this.tryCount = 0;
-    this.description = "test" // variable may be empty
+    this.description = "test"; // variable may be empty
     this.name = process.env.NAME;
     this.redirectConfig = {
       name: "web-panel", // variable name
@@ -44,7 +44,10 @@ export class FrpConnectManager {
     await fetch(`${process.env.IP}/clients/new`, {
       method: "POST",
       headers: { Cookie: this.cookie },
-      body: new URLSearchParams({ name: this.name, description: this.description }),
+      body: new URLSearchParams({
+        name: this.name,
+        description: this.description,
+      }),
       redirect: "manual",
     });
     return true;

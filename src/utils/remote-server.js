@@ -1,9 +1,15 @@
 import net from "net";
 import os from "os";
+import { fileURLToPath } from "url";
+import path from "path";
 
 import { logger } from "#utils/logger";
 import { CONFIG } from "#config";
 import { LOGS, getWordsWithNumsCompletion } from "#consts";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const APP_ROOT = process.env.PROJECT_ROOT || path.resolve(__dirname, "../..");
 
 export class RemoteControlServer {
   constructor(pcControl) {
@@ -18,9 +24,9 @@ export class RemoteControlServer {
 
   logWithTime(minutes) {
     const rounded = Math.round(minutes);
+
     if (rounded < 60)
       return `${rounded} ${LOGS.base.minute}${getWordsWithNumsCompletion(rounded)}`;
-
     const mins = rounded % 60;
     const hrs = (rounded - mins) / 60;
     return `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ["", "а", "ов"])} ${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)}`;
@@ -32,7 +38,6 @@ export class RemoteControlServer {
         this.server = net.createServer((socket) => {
           this.handleClient(socket);
         });
-
         this.server.on("error", (err) => {
           if (err.code === "EADDRINUSE") {
             const error = LOGS.base.usedPort(this.port);
@@ -42,7 +47,6 @@ export class RemoteControlServer {
             reject(err);
           }
         });
-
         this.server.listen(this.port, "0.0.0.0", () => {
           this.running = true;
           logger.info(`${LOGS.base.remoteStarted} ${this.port}`);
@@ -60,21 +64,20 @@ export class RemoteControlServer {
     logger.info(`${LOGS.remote.connect}: ${clientAddress} (ID: ${clientId})`);
     socket.setTimeout(this.timeout * 1000);
     this.clients.set(clientId, { socket, address: clientAddress });
-
     let buffer = "";
     socket.on("data", (data) => {
       buffer += data.toString();
       const commands = buffer.split("\n");
-      buffer = commands.pop() || ""; // Оставляем последнюю неполную команду
+      buffer = commands.pop() || "";
 
       for (const cmd of commands) {
         const trimmed = cmd.trim();
+
         if (trimmed) {
           this.processCommand(trimmed, socket, clientId);
         }
       }
     });
-
     socket.on("timeout", () => {
       try {
         socket.write("ALIVE\n");
@@ -82,11 +85,9 @@ export class RemoteControlServer {
         // Игнорируем
       }
     });
-
     socket.on("error", (err) => {
       logger.error(`$${LOGS.remote.wsErr} (ID: ${clientId}): ${err.message}`);
     });
-
     socket.on("close", () => {
       this.clients.delete(clientId);
       logger.info(
@@ -98,7 +99,6 @@ export class RemoteControlServer {
   async processCommand(command, socket, clientId) {
     logger.info(`${LOGS.remote.command} ${clientId}: ${command}`);
     let response = "";
-
     try {
       switch (command.toUpperCase()) {
         case "CAN_UNLOCK":
@@ -143,6 +143,9 @@ export class RemoteControlServer {
           this.pcControl.cancelShutdown();
           response = `OK: ${LOGS.remote.shutdownAbort}\n`;
           break;
+        case "GET_APP_PATH":
+          response = `OK: ${APP_ROOT}\n`;
+          break;
         case "GET_NAME":
           response = `OK: ${os.hostname()}\n`;
           break;
@@ -174,12 +177,12 @@ export class RemoteControlServer {
           response = `OK: ${remaining !== null ? `${this.logWithTime(remaining)}` : LOGS.remote.unlimit}\n`;
           break;
         case "GET_USAGE_TIME":
-          const usageMinutes = this.pcControl.getUsageMinutes()
+          const usageMinutes = this.pcControl.getUsageMinutes();
           response = `OK: ${this.logWithTime(usageMinutes)}\n`;
           break;
         case "GET_SESSION_TIME":
-          const sessionUsageMinutes = this.pcControl.getSessionUsageMinutes()
-          const dailyUsageMinutes = this.pcControl.getUsageMinutes()
+          const sessionUsageMinutes = this.pcControl.getSessionUsageMinutes();
+          const dailyUsageMinutes = this.pcControl.getUsageMinutes();
           response = `OK: ${this.logWithTime(sessionUsageMinutes < dailyUsageMinutes ? sessionUsageMinutes : dailyUsageMinutes)}\n`;
           break;
         case "GET_SHUTDOWN_TIME":
@@ -297,7 +300,9 @@ export class RemoteControlServer {
           }
       }
     } catch (err) {
-      logger.error(`${LOGS.remote.commandError}: ${err.message},\n ${err.stack}`);
+      logger.error(
+        `${LOGS.remote.commandError}: ${err.message},\n ${err.stack}`,
+      );
       response = `ERROR: ${err.message}\n`;
     }
 
