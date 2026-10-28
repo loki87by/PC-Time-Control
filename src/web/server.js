@@ -50,7 +50,7 @@ export class WebServer {
       this.server.listen(this.port, "0.0.0.0", () => {
         logger.info(`${LOGS.web.started} ${this.port}`);
         const check = http.get(
-          `http://${PATHS.localhost}127.0.0.1:${this.port}`,
+          `http://${PATHS.localhost}:${this.port}`,
           (res) => {
             logger.info(`${LOGS.web.response}${PATHS.localhost}:${this.port}`);
           },

@@ -2,7 +2,7 @@ import dgram from "dgram";
 import os from "os";
 import { CONFIG } from "#config";
 import { logger } from "#utils/logger";
-import { PATHS } from "#consts";
+import { PATHS, LOGS } from "#consts";
 
 const DISCOVERY_PORT = CONFIG.discoveryPort;
 const DISCOVERY_MSG = CONFIG.discoveryTitle;
