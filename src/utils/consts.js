@@ -410,7 +410,7 @@ export const PATHS = {
   localhost: "127.0.0.1",
   commands: {
     logon: 'tasklist /FI "IMAGENAME eq LogonUI.exe" /NH',
-    lock: "rundll32.exe user32.dll,LockWorkStation",
+    lock: 'powershell -NoProfile -Command "rundll32.exe user32.dll,LockWorkStation"',
     shutdownAbort: "shutdown /a",
     getPid: "netstat -ano | findstr",
     cleanPort: "taskkill /F /PID",

@@ -253,7 +253,7 @@ export class PCTimeControl {
     try {
       if (process.platform === "win32") {
         this.isLocked = true;
-        exec(PATHS.commands.lock);
+        await execPromise(PATHS.commands.lock);
         logger.info(LOGS.control.lock);
       } else {
         logger.warn(LOGS.control.noWinLock);
@@ -402,11 +402,18 @@ export class PCTimeControl {
       logger.info(LOGS.control.sessionStartedOnMonitor);
     }
 
+    let lockAttemptTicks = 0;
+
     this.monitorInterval = setInterval(async () => {
       try {
         const actualLocked = await this.checkIfLocked();
 
         if (this.isLocked && !actualLocked) {
+          if (lockAttemptTicks < 2) {
+            lockAttemptTicks++;
+            return;
+          }
+          lockAttemptTicks = 0;
           this.isLocked = false;
           logger.info(LOGS.control.unlock);
 
@@ -435,10 +442,12 @@ export class PCTimeControl {
             );
           }
         } else if (!this.isLocked && actualLocked) {
+          lockAttemptTicks = 0;
           logger.info(LOGS.control.lock);
           this.isLocked = true;
         }
         if (!this.isLocked) {
+          lockAttemptTicks = 0;
           await this.checkLimitsAndWarnings();
         }
         if (this.isLocked && this.isOnBreak) {

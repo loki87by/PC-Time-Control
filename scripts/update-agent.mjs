@@ -12,12 +12,15 @@
  *   --dry-run          Показать, что будет сделано, без реальных действий
  *   --no-restart       Не перезапускать службу после обновления
  *   --no-deps          Не устанавливать зависимости (npm install)
+ *   --user <домен\пользователь>  Имя пользователя для SMB-доступа (пароль из SMB_PASSWORD env)
+ *   --fix-remote-uac  Отключить UAC remote restrictions на целевом ПК (требуется админ-доступ)
  *   --help             Показать справку
  * Примеры:
  *   node scripts/update-agent.mjs --scan
  *   node scripts/update-agent.mjs --ip 192.168.1.105
  *   node scripts/update-agent.mjs --scan --dry-run
  *   node scripts/update-agent.mjs --ip 192.168.1.105 --no-restart
+ *   node scripts/update-agent.mjs --ip 192.168.1.106 --user SON
  */
 
 import net from "net";
@@ -26,6 +29,7 @@ import path from "path";
 import os from "os";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 import { CONFIG } from "#config";
 import { LOGS, EXCLUDE_PATTERNS, UPDATE_HELPER, logWithTime } from "#consts";
 
@@ -33,8 +37,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
+dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
+
 const SERVER_PORT = CONFIG.serverPort;
+// Сначала пробуем имя из конфига, но на целевом ПК служба может называться иначе
 const SERVICE_NAME = CONFIG.serviceName;
+const SERVICE_NAME_FALLBACK = "pctimecontrol.exe";
 const SCAN_TIMEOUT = CONFIG.scanTimeout;
 
 function printUsage() {
@@ -52,7 +60,9 @@ function parseArgs() {
   let scan = false,
     dryRun = false,
     restart = true,
-    deps = true;
+    deps = true,
+    smbUser = null,
+    fixRemoteUac = false;
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -71,6 +81,12 @@ function parseArgs() {
       case "--no-deps":
         deps = false;
         break;
+      case "--user":
+        if (args[i + 1] && !args[i + 1].startsWith("--")) smbUser = args[++i];
+        break;
+      case "--fix-remote-uac":
+        fixRemoteUac = true;
+        break;
     }
   }
 
@@ -80,7 +96,7 @@ function parseArgs() {
     );
     process.exit(1);
   }
-  return { ips, scan, dryRun, restart, deps };
+  return { ips, scan, dryRun, restart, deps, smbUser, fixRemoteUac };
 }
 
 function log(msg, type) {
@@ -143,6 +159,54 @@ async function scanNetwork() {
   }
   await Promise.all(promises);
   return found;
+}
+
+function netUseConnect(ip, smbUser) {
+  const smbPass = process.env.SMB_PASSWORD || "";
+
+  // Сначала удаляем все предыдущие подключения к этому IP
+  try {
+    execSync(`net use \\\\${ip}\\C$ /DELETE /Y 2>nul`, {
+      stdio: "ignore",
+      timeout: 5000,
+    });
+  } catch {
+    /* ignore */
+  }
+
+  let cmd = `net use \\\\${ip}\\C$ /PERSISTENT:NO`;
+
+  if (smbUser) {
+    const user = smbUser.includes("\\") ? smbUser : `.\\${smbUser}`;
+    cmd += ` /USER:${user}`;
+    if (smbPass) cmd += ` ${smbPass}`;
+  }
+  try {
+    execSync(cmd, { stdio: "ignore", timeout: 10000 });
+    return true;
+  } catch (err) {
+    log(`net use error: ${err.message}`, "error");
+    return false;
+  }
+}
+
+function fixRemoteUac(ip) {
+  log("Отключаю UAC remote restrictions...");
+  try {
+    execSync(
+      `reg add \\\\${ip}\\HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f`,
+      { stdio: "ignore", timeout: 10000 },
+    );
+    log("UAC remote restrictions отключены (требуется перезагрузка)", "ok");
+    log(
+      "  После перезагрузки целевого ПК net use C$ будет работать",
+      "text",
+    );
+    return true;
+  } catch (err) {
+    log(`Не удалось отключить UAC remote restrictions: ${err.message}`, "error");
+    return false;
+  }
 }
 
 function toSmbPath(ip, localPath) {
@@ -213,14 +277,7 @@ function copyToSmb(ip, remoteRoot, dryRun) {
       log(`${LOGS.update.more}${files.length - 10}${LOGS.update.files}`);
     return true;
   }
-  try {
-    execSync(`net use \\\\\\\\${ip}\\C$ /PERSISTENT:NO 2>nul`, {
-      stdio: "ignore",
-      timeout: 5000,
-    });
-  } catch {
-    /* ok */
-  }
+  netUseConnect(ip, null);
   try {
     execSync(`if not exist "${remoteRoot}" mkdir "${remoteRoot}"`, {
       shell: "cmd",
@@ -279,38 +336,76 @@ function installDepsRemote(ip, remoteRoot, dryRun) {
   }
 }
 
+function getRemoteServiceName(ip) {
+  // Пробуем найти службу на удалённом ПК по известным именам
+  const candidates = ["pctimecontrol.exe", "pctimecontrol", "PCTimeControl", "KMonitor", "kids-monitor"];
+  for (const name of candidates) {
+    try {
+      const out = execSync(`sc \\\\${ip} query "${name}"`, {
+        timeout: 10000,
+        encoding: "utf8",
+      });
+      if (out.includes("SERVICE_NAME")) return name;
+    } catch {
+      // не найдена, пробуем следующую
+    }
+  }
+  return SERVICE_NAME_FALLBACK;
+}
+
 function restartServiceRemote(ip, dryRun) {
   if (dryRun) {
     log(`${LOGS.update.serviceRestart}${SERVICE_NAME}${LOGS.update.on}${ip}`);
     return true;
   }
-  log(`${LOGS.update.serviceStop}${SERVICE_NAME}${LOGS.update.on}${ip}...`);
-  try {
-    execSync(`sc \\\\\\\\${ip} stop ${SERVICE_NAME}`, {
-      timeout: 15000,
-      stdio: "pipe",
-    });
-    log(LOGS.update.serviceStopped, "ok");
-  } catch (err) {
-    if (!err.message.includes("1062") && !err.message.includes("1058"))
-      log(`${LOGS.update.serviceStopErr}${err.message}`, "warn");
+
+  // Сначала находим реальное имя службы на удалённом ПК
+  const remoteServiceName = getRemoteServiceName(ip);
+  if (!remoteServiceName) {
+    log(
+      `Не удалось найти службу на ${ip}. Перезапустите службу вручную: net stop PCTimeControl && net start PCTimeControl`,
+      "warn",
+    );
+    return false;
   }
-  log(`${LOGS.update.serviceStart}${SERVICE_NAME}${LOGS.update.on}${ip}...`);
+
+  if (remoteServiceName !== SERVICE_NAME) {
+    log(
+      `Найдена служба с именем "${remoteServiceName}" (ожидалось "${SERVICE_NAME}")`,
+      "text",
+    );
+  }
+
+  log(`${LOGS.update.serviceStop}${remoteServiceName}${LOGS.update.on}${ip}...`);
+
+  let stopped = false;
   try {
-    execSync(`sc \\\\\\\\${ip} start ${SERVICE_NAME}`, {
-      timeout: 15000,
-      stdio: "pipe",
-    });
+    execSync(`sc \\\\${ip} stop "${remoteServiceName}"`, { timeout: 60000 });
+    log(LOGS.update.serviceStopped, "ok");
+    stopped = true;
+  } catch (err) {
+    const msg = err.message || "";
+    if (msg.includes("1062") || msg.includes("1058")) {
+      log(LOGS.update.serviceStopped, "ok");
+      stopped = true;
+    } else {
+      log(`${LOGS.update.serviceStopErr}${msg.slice(0, 200)}`, "warn");
+    }
+  }
+
+  log(`${LOGS.update.serviceStart}${remoteServiceName}${LOGS.update.on}${ip}...`);
+  try {
+    execSync(`sc \\\\${ip} start "${remoteServiceName}"`, { timeout: 120000 });
     log(LOGS.update.serviceStarted, "ok");
     return true;
   } catch (err) {
-    log(`${LOGS.update.serviceStartErr}${err.message}`, "error");
+    log(`${LOGS.update.serviceStartErr}${(err.message || "").slice(0, 200)}`, "error");
     return false;
   }
 }
 
 async function updatePC(ip, options) {
-  const { dryRun, restart, deps } = options;
+  const { dryRun, restart, deps, smbUser, fixRemoteUac } = options;
   console.log(`\n${"=".repeat(50)}`);
   log(`${LOGS.update.pcUpd}${ip}`);
   console.log("=".repeat(50));
@@ -324,17 +419,35 @@ async function updatePC(ip, options) {
   log(`${ip}${LOGS.update.pingOk}`, "ok");
   log(LOGS.update.hasAdmin);
 
-  try {
-    execSync(`net use \\\\\\\\${ip}\\C$ /PERSISTENT:NO 2>nul`, {
-      stdio: "ignore",
-      timeout: 5000,
-    });
-    log(`${LOGS.update.hasAccess}${ip}`, "ok");
-  } catch {
+  let connected = netUseConnect(ip, smbUser);
+
+  if (!connected && fixRemoteUac) {
+    log(
+      `Не удалось подключиться, пробую отключить UAC remote restrictions...`,
+      "warn",
+    );
+    fixRemoteUac(ip);
+    connected = netUseConnect(ip, smbUser);
+  }
+
+  if (!connected) {
     log(`${LOGS.update.hasNtAccess}${ip}\\C$`, "error");
     log(LOGS.update.checkPermsAndAccess);
+    if (!smbUser) {
+      log(
+        `  Подсказка: попробуйте указать учётные данные: --user домен\\администратор`,
+        "warn",
+      );
+    }
+    if (smbUser && !process.env.SMB_PASSWORD) {
+      log(
+        `  Подсказка: установите переменную SMB_PASSWORD с паролем пользователя`,
+        "warn",
+      );
+    }
     return false;
   }
+  log(`${LOGS.update.hasAccess}${ip}`, "ok");
   log(LOGS.update.pathRequest);
   const appPath = await getRemoteAppPath(ip);
 
