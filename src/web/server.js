@@ -178,6 +178,9 @@ export class WebServer {
           }
         }
       });
+    } else {
+      exec(PATHS.commands.killPortLinux(CONFIG.webPort));
+      exec(PATHS.commands.killPortLinux(CONFIG.serverPort));
     }
   }
 }

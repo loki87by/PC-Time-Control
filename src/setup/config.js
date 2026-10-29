@@ -55,10 +55,14 @@ export const CONFIG = {
   msgTitle: "РОДИТЕЛЬСКИЙ КОНТРОЛЬ",
   // часовой пояс относительно UTC
   timeShift: 3,
-  // имя службы Windows
+  // имя службы (Windows: PCTimeControl, Linux: pc-time-control)
   serviceName: "PCTimeControl",
+  serviceNameLinux: "pc-time-control",
   // имя пользователя Windows для блокировки (если не указано — определяется автоматически)
-  lockUserId: "Garik",
+  // Можно задать через .env: LOCK_USER_ID=Username или LOCK_USERS=User1,User2,User3
+  lockUserId: process.env.LOCK_USER_ID || (process.env.LOCK_USERS ? process.env.LOCK_USERS.split(",")[0].trim() : null),
+  // список пользователей для блокировки (из .env LOCK_USERS=User1,User2,User3)
+  lockUserIds: process.env.LOCK_USERS ? process.env.LOCK_USERS.split(",").map((u) => u.trim()).filter(Boolean) : [],
   // таймаут на поиск каждого из доступных устройств
   scanTimeout: 500,
   // таймаут на установку зависимостей

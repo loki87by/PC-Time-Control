@@ -1,0 +1,29 @@
+[Unit]
+Description=PC-Time-Control — Parental Control Service
+Documentation=https://github.com/loki87by/PC-Time-Control
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/node /opt/pc-time-control/index.js
+WorkingDirectory=/opt/pc-time-control
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/pc-time-control/service.log
+StandardError=append:/var/log/pc-time-control/service.log
+Environment=NODE_ENV=production
+Environment=PROJECT_ROOT=/opt/pc-time-control
+Environment=NODE_PATH=/opt/pc-time-control
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+CapabilityBoundingSet=CAP_SYS_BOOT CAP_DAC_OVERRIDE
+AmbientCapabilities=CAP_SYS_BOOT CAP_DAC_OVERRIDE
+
+[Install]
+WantedBy=multi-user.target

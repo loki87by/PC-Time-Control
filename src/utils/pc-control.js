@@ -241,24 +241,60 @@ export class PCTimeControl {
         const { stdout } = await execPromise(PATHS.commands.logon);
         return stdout.includes("LogonUI.exe");
       }
-      // Для Linux/macOS можно реализовать через другие команды
-      return false;
+      // Linux fallback
+      const { stdout } = await execPromise(PATHS.commands.listSessionsLinux);
+
+      if (!stdout.trim()) {
+        return true;
+      }
+      const lines = stdout.trim().split("\n");
+
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+
+        if (parts.length >= 3 && parts[2] === "seat") {
+          return false;
+        }
+      }
+      return true;
     } catch (err) {
       logger.error(`${LOGS.control.getStateError}: ${err.message}`);
       return false;
     }
   }
 
-async getActiveUser() {
+  async getActiveUser() {
     try {
-      const { stdout } = await execPromise("qwinsta");
-      const lines = stdout.split("\n");
-      for (const line of lines) {
-        if (line.trimStart().startsWith(">console") || /Active|��⨢��/.test(line)) {
-          const parts = line.trim().split(/\s+/);
-          // parts: [>console, USERNAME, ID, STATE, TYPE]
-          return parts[1] || null;
+      if (process.platform === "win32") {
+        const { stdout } = await execPromise(PATHS.commands.qwinsta);
+        const lines = stdout.split("\n");
+        for (const line of lines) {
+          if (
+            line.trimStart().startsWith(">console") ||
+            /Active|��⨢��/.test(line)
+          ) {
+            const parts = line.trim().split(/\s+/);
+            return parts[1] || null;
+          }
         }
+        return null;
+      }
+      // Linux fallback
+      try {
+        const { stdout } = await execPromise(PATHS.commands.activeUserLinux);
+        const user = stdout.trim();
+        if (user) return user;
+      } catch {
+        // ignore
+      }
+      try {
+        const { stdout } = await execPromise(
+          PATHS.commands.activeUserLinuxFallback,
+        );
+        const user = stdout.trim();
+        if (user) return user;
+      } catch {
+        // ignore
       }
       return null;
     } catch {
@@ -266,26 +302,63 @@ async getActiveUser() {
     }
   }
 
+  _resolveLockUsers() {
+    const active = this.currentUser;
+    const fromConfig = [];
+
+    if (CONFIG.lockUserId) fromConfig.push(CONFIG.lockUserId);
+    if (CONFIG.lockUserIds?.length) fromConfig.push(...CONFIG.lockUserIds);
+
+    const candidates = [active, ...fromConfig];
+    return [...new Set(candidates)].filter(Boolean);
+  }
+
   async lockPC() {
     try {
       if (process.platform === "win32") {
         this.isLocked = true;
-        let lockUser = await this.getActiveUser();
-        if (!lockUser) lockUser = CONFIG.lockUserId || this.currentUser;
-        logger.info(`${LOGS.control.lock} (user: ${lockUser})`);
+        const lockUsers = this._resolveLockUsers();
+        logger.info(`${LOGS.control.lock} (users: ${lockUsers.join(", ")})`);
 
-        if (lockUser === this.currentUser) {
-          // Локальная блокировка — напрямую
-          exec("rundll32.exe user32.dll,LockWorkStation");
-        } else {
-          // Удалённая блокировка — через планировщик задач от имени другого пользователя
-          const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempLock_' /tr 'rundll32.exe user32.dll,LockWorkStation' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempLock_' *>$null; Start-Sleep 2; schtasks /delete /tn '_PCTempLock_' /f *>$null"`;
-          await execPromise(cmd);
+        for (const user of lockUsers) {
+          if (user === this.currentUser) {
+            exec(PATHS.commands.lockWorkStation);
+          } else {
+            const cmd = PATHS.commands.lockRemoteWin(user);
+            await execPromise(cmd);
+          }
         }
         logger.info(LOGS.control.lock);
-      } else {
-        logger.warn(LOGS.control.noWinLock);
+        return;
       }
+      // Linux fallback
+      this.isLocked = true;
+      logger.info(`${LOGS.control.lock} (Linux)`);
+
+      try {
+        await execPromise(PATHS.commands.lockLinux);
+        logger.info(LOGS.control.lock);
+        return;
+      } catch {
+        // ignore
+      }
+      // GNOME-specific
+      try {
+        await execPromise(PATHS.commands.lockLinuxGnome);
+        logger.info(LOGS.control.lock);
+        return;
+      } catch {
+        // ignore
+      }
+      // KDE-specific
+      try {
+        await execPromise(PATHS.commands.lockLinuxKde);
+        logger.info(LOGS.control.lock);
+        return;
+      } catch {
+        // ignore
+      }
+      logger.warn(LOGS.control.noWinLock);
     } catch (err) {
       logger.error(`${LOGS.control.lockError} ${err.message}`);
     }
@@ -314,9 +387,10 @@ async getActiveUser() {
             : this.logWithTime(seconds / 60);
         logger.info(`${LOGS.control.shutdownTimeout} ${logTime}`);
       } else {
-        exec(PATHS.commands.shutdown(Math.ceil(seconds / 60)));
+        const minutes = Math.ceil(seconds / 60);
+        exec(PATHS.commands.shutdownLinux(minutes));
         logger.info(
-          `${LOGS.control.shutdownTimeout} ${this.logWithTime(seconds / 60)}`,
+          `${LOGS.control.shutdownTimeout} ${this.logWithTime(minutes)}`,
         );
       }
     } catch (err) {
@@ -333,6 +407,12 @@ async getActiveUser() {
 
         if (this.delayShutdownTime) this.delayShutdownCancelled = true;
         if (needLogs) logger.info(LOGS.control.shutdownAbort);
+      } else {
+        exec(PATHS.commands.cancelShutdownLinux);
+        this.isShuttingDown = false;
+
+        if (this.delayShutdownTime) this.delayShutdownCancelled = true;
+        if (needLogs) logger.info(LOGS.control.shutdownAbort);
       }
     } catch (err) {
       logger.error(`${LOGS.control.shutdownAbortError}: ${err.message}`);
@@ -342,14 +422,20 @@ async getActiveUser() {
   async showMessage(message, title = CONFIG.msgTitle) {
     try {
       if (process.platform === "win32") {
-        const escapedMessage = message.replace(/'/g, "''");
-        const lockUser = await this.getActiveUser() || CONFIG.lockUserId || this.currentUser;
-        const cmd = `powershell -NoProfile -Command "schtasks /create /tn '_PCTempMsg_' /tr 'powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(''${escapedMessage}'', ''${title}'', ''OK'', ''Warning'')\"' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempMsg_' *>$null; Start-Sleep 3; schtasks /delete /tn '_PCTempMsg_' /f *>$null"`;
-        exec(cmd, { windowsHide: true });
-      } else {
-        console.log(`\n${"=".repeat(50)}`);
-        console.log(`⚠️ ${title}: ${message}`);
-        console.log(`${"=".repeat(50)}\n`);
+        const lockUsers = this._resolveLockUsers();
+        for (const user of lockUsers) {
+          const cmd = PATHS.commands.showMessageWin(message, title, user);
+          exec(cmd, { windowsHide: true });
+        }
+        return;
+      }
+      // Linux fallback
+      try {
+        const escapedMsg = message.replace(/"/g, '\\"').replace(/'/g, "\\'");
+        const escapedTitle = title.replace(/"/g, '\\"');
+        await execPromise(PATH.commands.notifySend(escapedMsg, escapedTitle));
+      } catch {
+        console.error(`\n⚠️ [${title}] ${message}\n`);
       }
     } catch (err) {
       logger.error(`${LOGS.control.showMessageError} ${err.message}`);

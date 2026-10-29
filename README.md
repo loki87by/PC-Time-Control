@@ -13,8 +13,9 @@
 | [Удалённое управление](docs/03-remote-control.md) | TCP-порт 9999 и веб-интерфейс |
 | [Внешний доступ (frp)](docs/04-external-access.md) | Проброс через публичный сервер |
 | [Авто-восстановление проброса](docs/05-frp-auto-refresh.md) | Обновление frp при рестартах ВМ |
-| [Доступ к C$ по SMB](docs/06-smb-setup.md) | Настройка целевого ПК для удалённого обновления |
-| [Устранение проблем](docs/07-troubleshooting.md) | Частые ошибки |
+| [Доступ к C$ по SMB](docs/06-smb-setup.md) | Настройка целевого ПК для удалённого обновления (Windows) |
+| [Настройка Linux](docs/06-linux-setup.md) | Linux: зависимости, firewall, обновление через SSH |
+| [Устранение проблем](docs/07-troubleshooting.md) | Частые ошибки (Windows + Linux) |
 
 ## Установка зависимостей
 
@@ -28,10 +29,18 @@ npm install
 npm start
 ```
 
-## Установка как службы Windows (автозагрузка)
+## Установка как службы (автозагрузка)
+
+**Windows:**
 
 ```bash
 npm run install-service
+```
+
+**Linux (systemd):**
+
+```bash
+npm run install-service-linux
 ```
 
 Подробности — в [docs/01-install.md](docs/01-install.md).

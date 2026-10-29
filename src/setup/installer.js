@@ -3,8 +3,25 @@
 import path from "path";
 import { execSync } from "child_process";
 import { fileURLToPath, pathToFileURL } from "url";
-import { Service } from "node-windows";
-import { LOGS } from "../utils/consts.js";
+
+import { LOGS, PATHS } from "../utils/consts.js";
+
+// Windows-only: проверяем платформу
+if (process.platform !== "win32") {
+  console.error(`❌ ${LOGS.setup.winOnly}`);
+  console.error(`   ${LOGS.setup.winOnlyHint}`);
+  process.exit(1);
+}
+
+let Service;
+try {
+  const mod = await import("node-windows");
+  Service = mod.Service;
+} catch (err) {
+  console.error(`❌ ${LOGS.setup.winNodeWindowsMissing}`);
+  console.error(`   ${LOGS.setup.winNodeWindowsHint}`);
+  process.exit(1);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,7 +37,7 @@ function installService() {
 
   try {
     try {
-      execSync("net session", { stdio: "ignore" });
+      execSync(PATHS.commands.winNetSession, { stdio: "ignore" });
     } catch (err) {
       console.log(LOGS.setup.noRoot);
       console.log(LOGS.setup.rootHint);
@@ -98,7 +115,7 @@ function uninstallService() {
   console.log(LOGS.setup.uninstalling);
 
   try {
-    execSync("net stop PCTimeControl", { stdio: "ignore" });
+    execSync(PATHS.commands.winNetStop(SERVICE_NAME), { stdio: "ignore" });
   } catch (err) {
     // Сервис может быть уже остановлен
   }
@@ -126,28 +143,12 @@ function installStartupShortcut() {
   console.log(LOGS.setup.startupInit);
 
   try {
-    const startupFolder = path.join(
-      process.env.APPDATA,
-      "Microsoft",
-      "Windows",
-      "Start Menu",
-      "Programs",
-      "Startup",
+    const startupFolder = PATHS.commands.winStartupFolder();
+    const shortcutPath = path.join(startupFolder, PATHS.commands.winStartupShortcutName);
+    const psScript = PATHS.commands.winStartupPsScript(
+      shortcutPath, process.execPath, SCRIPT_PATH, PROJECT_ROOT,
     );
-    const shortcutPath = path.join(startupFolder, "PC Time Control.lnk");
-    const psScript = `
-$WshShell = New-Object -comObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut('${shortcutPath}')
-$Shortcut.TargetPath = '${process.execPath}'
-$Shortcut.Arguments = '${SCRIPT_PATH}'
-$Shortcut.WorkingDirectory = '${PROJECT_ROOT}'
-$Shortcut.WindowStyle = 7
-$Shortcut.IconLocation = '${process.execPath}, 0'
-$Shortcut.Save()
-`;
-    execSync(`powershell -Command "& {${psScript.replace(/\r?\n/g, "; ")}}"`, {
-      stdio: "ignore",
-    });
+    execSync(`powershell -Command "& {${psScript}}"`, { stdio: "ignore" });
     console.log(LOGS.setup.startupSuccess);
   } catch (err) {
     console.log(`${LOGS.setup.startupFailed}: ${err.message}`);

@@ -82,7 +82,7 @@ export class RemoteControlServer {
       try {
         socket.write("ALIVE\n");
       } catch (err) {
-        // Игнорируем
+        // ignore
       }
     });
     socket.on("error", (err) => {
@@ -145,6 +145,9 @@ export class RemoteControlServer {
           break;
         case "GET_APP_PATH":
           response = `OK: ${APP_ROOT}\n`;
+          break;
+        case "GET_PLATFORM":
+          response = `OK: ${process.platform}\n`;
           break;
         case "GET_NAME":
           response = `OK: ${os.hostname()}\n`;

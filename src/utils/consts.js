@@ -270,7 +270,7 @@ export const LOGS = {
     noRoot: "❌ Скрипт должен быть запущен от имени администратора",
     rootHint:
       '   Кликнуть правой кнопкой мыши по командной строке или PowerShell и выбрать "Запустить от имени администратора"',
-    serviceDescription: "Kids-monitor - служба родительского контроля",
+    serviceDescription: "pc-time-control - служба родительского контроля",
     success: "✅ Служба успешно установлена!",
     name: "Имя",
     script: "Путь к скрипту",
@@ -292,6 +292,67 @@ export const LOGS = {
     full: "=== Установка родительского контроля ===\n",
     complete: "\n✅ Установка завершена!",
     boot: "Сервис будет запускаться автоматически при загрузке системы.",
+    // Linux
+    linuxInit: "📦 Установка pc-time-control как systemd-сервиса...\n",
+    linuxNoRoot: "❌ Скрипт должен быть запущен от root (через sudo).",
+    linuxRootHint: "   Используйте: sudo node src/setup/installer-linux.js",
+    linuxNotLinux: "❌ Этот скрипт только для Linux. На Windows используйте:",
+    linuxNotLinuxHint: "   npm run install-service",
+    linuxUnitNotFound: "❌ Не найден файл systemd unit:",
+    linuxUnitCopied: "✅ Unit-файл скопирован:",
+    linuxDaemonReloaded: "✅ systemd daemon перезагружен",
+    linuxEnabled: "✅ Сервис добавлен в автозагрузку",
+    linuxStarted: "✅ Сервис запущен",
+    linuxLogDirCreated: "✅ Лог-директория создана:",
+    linuxLogDirWarn: "⚠️ Не удалось создать лог-директорию:",
+    linuxUnitRemoved: "✅ Unit-файл удалён:",
+    linuxUnitNotFoundWarn: "⚠️ Unit-файл не найден",
+    linuxStopped: "✅ Сервис остановлен",
+    linuxDisabled: "✅ Автозагрузка отключена",
+    linuxAutoStart: "Автозагрузка:",
+    linuxState: "Состояние:",
+    linuxNotFound: "не установлен",
+    linuxManageTitle: "\n📝 Управление сервисом:",
+    linuxManageStatus: "   sudo systemctl status pc-time-control   # статус",
+    linuxManageStop: "   sudo systemctl stop pc-time-control     # остановить",
+    linuxManageStart: "   sudo systemctl start pc-time-control    # запустить",
+    linuxManageRestart: "   sudo systemctl restart pc-time-control # перезапустить",
+    linuxManageLogs: "   sudo journalctl -u pc-time-control -f   # логи в реальном времени",
+    linuxInstallComplete: "\n✅ Установка завершена!",
+    linuxUninstallTitle: "🗑️ Удаление pc-time-control systemd-сервиса...\n",
+    linuxUninstallComplete: "\n✅ Удаление завершено!",
+    linuxStatusTitle: "📊 Статус pc-time-control сервиса:\n",
+    // Windows installer
+    winOnly: "❌ Этот скрипт только для Windows. На Linux используйте:",
+    winOnlyHint: "   npm run install-service-linux",
+    winNodeWindowsMissing: "❌ Не удалось загрузить node-windows. Убедитесь, что зависимость установлена:",
+    winNodeWindowsHint: "   npm install",
+    winNetSession: "net session",
+    winStartupShortcutName: "PC Time Control.lnk",
+    winNetStop: (name) => `net stop ${name}`,
+    winNetStart: (name) => `net start ${name}`,
+    winStartupPsScript: (shortcutPath, execPath, scriptPath, projectRoot) =>
+      `$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('${shortcutPath}'); $Shortcut.TargetPath = '${execPath}'; $Shortcut.Arguments = '${scriptPath}'; $Shortcut.WorkingDirectory = '${projectRoot}'; $Shortcut.WindowStyle = 7; $Shortcut.IconLocation = '${execPath}, 0'; $Shortcut.Save()`,
+    winStartupFolder: () =>
+      pathJoin(process.env.APPDATA, "Microsoft", "Windows", "Start Menu", "Programs", "Startup"),
+    winScQuery: (ip, name) => `sc \\\\${ip} query "${name}"`,
+    winScStop: (ip, name) => `sc \\\\${ip} stop "${name}"`,
+    winScStart: (ip, name) => `sc \\\\${ip} start "${name}"`,
+    winNetUseDelete: (ip) => `net use \\\\${ip}\\C$ /DELETE /Y 2>nul`,
+    winNetUseConnect: (ip, user, pass) => {
+      let cmd = `net use \\\\${ip}\\C$ /PERSISTENT:NO`;
+      if (user) {
+        const u = user.includes("\\") ? user : `.\\${user}`;
+        cmd += ` /USER:${u}`;
+        if (pass) cmd += ` ${pass}`;
+      }
+      return cmd;
+    },
+    winMkdir: (dir) => `if not exist "${dir}" mkdir "${dir}"`,
+    winRegFixUac: (ip) =>
+      `reg add \\\\${ip}\\HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f`,
+    winPowershellNpmInstall: (dir) =>
+      `powershell -Command "& {cd '${dir}'; npm install --no-audit --no-fund}"`,
   },
   update: {
     title: "\n\x1b[1m\x1b[36m🔧 СКРИПТ УДАЛЕННОГО ОБНОВЛЕНИЯ АГЕНТА",
@@ -354,6 +415,22 @@ export const LOGS = {
     on: " на ",
     end: " завершено",
     success: "ГОТОВО: успешно ",
+    // update-agent specific strings
+    netUseError: "net use error: ",
+    uacDisabling: "Отключаю UAC remote restrictions...",
+    uacDisabled: "UAC remote restrictions отключены (требуется перезагрузка)",
+    uacHint: "  После перезагрузки целевого ПК net use C$ будет работать",
+    uacFailed: "Не удалось отключить UAC remote restrictions: ",
+    rsyncError: "rsync error: ",
+    sshMkdirError: "Не удалось создать директорию на удалённом хосте",
+    platformDetected: "Определена платформа: ",
+    smbHintNoUser: "  Подсказка: попробуйте указать учётные данные: --user домен\\администратор",
+    smbHintNoPass: "  Подсказка: установите переменную SMB_PASSWORD с паролем пользователя",
+    divider: "=".repeat(50),
+    serviceNotFound: (ip) => `Не удалось найти службу на ${ip}. Перезапустите службу вручную: net stop PCTimeControl && net start PCTimeControl`,
+    serviceNameMismatch: (found, expected) =>
+      `Найдена служба с именем "${found}" (ожидалось "${expected}")`,
+    smbConnectFailed: (ip) => `Не удалось подключиться к ${ip}\\C$, пробую отключить UAC remote restrictions...`,
   },
   discovery: {
     socketErr: "Ошибка сокетов: ",
@@ -409,16 +486,72 @@ export const PATHS = {
   config: "frpc.yaml",
   localhost: "127.0.0.1",
   commands: {
+    // Windows
     logon: 'tasklist /FI "IMAGENAME eq LogonUI.exe" /NH',
     lock: 'powershell -NoProfile -Command "& {$u=((qwinsta | Select-String -Pattern \'Активно\' | Select-String -Pattern \'>\') -split \'\\s+\')[3]; if(!$u){$u=((qwinsta | Select-String -Pattern \'Active\' | Select-String -Pattern \'>\') -split \'\\s+\')[3]}; if($u){schtasks /create /tn \'_PCTempLock_\' /tr \'rundll32.exe user32.dll,LockWorkStation\' /sc once /st 23:59 /ru $u /f >$null 2>$null; schtasks /run /tn \'_PCTempLock_\' >$null 2>$null; Start-Sleep 2; schtasks /delete /tn \'_PCTempLock_\' /f >$null 2>$null}else{rundll32.exe user32.dll,LockWorkStation}}"',
     shutdownAbort: "shutdown /a",
     getPid: "netstat -ano | findstr",
     cleanPort: "taskkill /F /PID",
+    qwinsta: "qwinsta",
+    lockWorkStation: "rundll32.exe user32.dll,LockWorkStation",
     sendMess: (message, title, button) =>
       `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${message}', '${title}', '${button}', 'Warning')"`,
     shutdownWin: (seconds, mess = false) =>
       `shutdown /s /t ${seconds} ${mess ? `/c "${LOGS.base.shutdownTimeout} ${logWithTime(seconds)}"` : ""}`,
     shutdown: (timeout) => `shutdown -h +${timeout}`,
+    lockRemoteWin: (lockUser) =>
+      `powershell -NoProfile -Command "schtasks /create /tn '_PCTempLock_' /tr 'rundll32.exe user32.dll,LockWorkStation' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempLock_' *>$null; Start-Sleep 2; schtasks /delete /tn '_PCTempLock_' /f *>$null"`,
+    showMessageWin: (message, title, lockUser) => {
+      const escaped = message.replace(/'/g, "''");
+      return `powershell -NoProfile -Command "schtasks /create /tn '_PCTempMsg_' /tr 'powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(''${escaped}'', ''${title}'', ''OK'', ''Warning'')\"' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempMsg_' *>$null; Start-Sleep 3; schtasks /delete /tn '_PCTempMsg_' /f *>$null"`;
+    },
+    scQueryCandidates: (ip) => {
+      const candidates = ["pctimecontrol.exe", "pctimecontrol", "PCTimeControl", "pc-time-control"];
+      return candidates.map((n) => `sc \\\\${ip} query "${n}"`);
+    },
+    // Linux
+    logonLinux: 'ps aux | grep -E "gnome-screensaver|kscreensaver|light-locker|xflock4" | grep -v grep',
+    lockedCheckLinux: 'loginctl list-sessions 2>/dev/null | grep -E "seat|lock" || true',
+    activeUserLinux: 'loginctl show-session $(loginctl list-sessions --no-legend 2>/dev/null | head -1 | awk \'{print $1}\') -p Name 2>/dev/null | cut -d= -f2',
+    activeUserLinuxFallback: 'who -u | head -1 | awk \'{print $1}\'',
+    lockLinux: 'loginctl lock-sessions',
+    lockLinuxGnome: 'dbus-send --type=method_call --dest=org.gnome.ScreenSaver /org/gnome/ScreenSaver org.gnome.ScreenSaver.Lock 2>/dev/null || true',
+    lockLinuxKde: 'qdbus org.freedesktop.ScreenSaver /ScreenSaver Lock 2>/dev/null || true',
+    shutdownLinuxNow: "shutdown -h now",
+    shutdownLinuxAbort: "shutdown -c",
+    cancelShutdownLinux: "shutdown -c",
+    listSessionsLinux: 'loginctl list-sessions --no-legend 2>/dev/null || true',
+    systemctlDaemonReload: "systemctl daemon-reload",
+    notifySend: (message, title) =>
+      `notify-send "${title}" "${message}" -u critical -i dialog-warning -t 10000 2>/dev/null || true`,
+    killPort: (port) => `lsof -ti :${port} 2>/dev/null | xargs -r kill -9`,
+    shutdownLinux: (minutes) => `shutdown -h +${minutes}`,
+    shutdownLinuxSeconds: (seconds) => `shutdown -h +${Math.ceil(seconds / 60)}`,
+    killPortLinux: (port) => `lsof -ti :${port} 2>/dev/null | xargs -r kill -9 2>/dev/null || true`,
+    systemctlEnable: (name) => `systemctl enable ${name}`,
+    systemctlDisable: (name) => `systemctl disable ${name}`,
+    systemctlStart: (name) => `systemctl start ${name}`,
+    systemctlStop: (name) => `systemctl stop ${name}`,
+    systemctlIsEnabled: (name) => `systemctl is-enabled ${name} 2>/dev/null || echo "not found"`,
+    systemctlIsActive: (name) => `systemctl is-active ${name} 2>/dev/null || echo "inactive"`,
+    systemctlStatus: (name) => `systemctl status ${name} 2>/dev/null | head -20`,
+    chownRecursive: (user, dir) => `chown -R ${user}:${user} ${dir}`,
+    sshMkdir: (keyOpt, userHost, dir) =>
+      `ssh ${keyOpt} ${userHost} "mkdir -p ${dir}"`,
+    rsyncCopy: (keyOpt, src, userHost, dest) =>
+      `rsync -az --delete ${keyOpt} ${src}/ ${userHost}:${dest}/`,
+    sshNpmInstall: (keyOpt, userHost, dir) =>
+      `ssh ${keyOpt} ${userHost} "cd ${dir} && npm install --no-audit --no-fund"`,
+    sshSystemctlStop: (keyOpt, userHost, name) =>
+      `ssh ${keyOpt} ${userHost} "systemctl stop ${name}"`,
+    sshSystemctlStart: (keyOpt, userHost, name) =>
+      `ssh ${keyOpt} ${userHost} "systemctl start ${name}"`,
+    sshBuildHost: (ip, user) =>
+      user ? `${user}@${ip}` : `root@${ip}`,
+    sshKeyFlag: (key) =>
+      key ? `-e "ssh -i ${key}"` : "",
+    sshKeyOpt: (key) =>
+      key ? `-i ${key}` : "",
   },
 };
 
@@ -460,20 +593,21 @@ export const EXCLUDE_PATTERNS = [
 export const UPDATE_HELPER = `${LOGS.update.title}${LOGS.update.end}
 
 Сканирует сеть, находит ПК с запущенным приложением (порт ${CONFIG.serverPort}),
-копирует файлы через SMB и перезапускает службу.
+копирует файлы и перезапускает службу.
 
 \x1b[1mИспользование:\x1b[0m
   node scripts/update-agent.mjs [опции]
 
 \x1b[1mОпции:\x1b[0m
-  --ip <адрес>       Обновить конкретный ПК (можно несколько)
-  --scan             Сканировать локальную сеть
-  --dry-run          Только показать, что будет сделано
-  --no-restart       Не перезапускать службу
-  --no-deps          Не устанавливать npm install
-  --user <домен\пользователь>  Имя пользователя для SMB-доступа (пароль из SMB_PASSWORD env)
-  --fix-remote-uac  Отключить UAC remote restrictions на целевом ПК (требуется админ-доступ)
-  --help             Показать справку
+  --ip <адрес>           Обновить конкретный ПК (можно несколько)
+  --scan                 Сканировать локальную сеть
+  --dry-run              Только показать, что будет сделано
+  --no-restart           Не перезапускать службу
+  --no-deps              Не устанавливать npm install
+  --user <пользователь>  Имя пользователя для SMB (Windows) или SSH (Linux)
+  --ssh-key <путь>       Путь к SSH-ключу для Linux-хостов
+  --fix-remote-uac       Отключить UAC remote restrictions на целевом ПК (Windows)
+  --help                 Показать справку
 
 \x1b[1mПримеры:\x1b[0m
   node scripts/update-agent.mjs --scan
@@ -481,4 +615,5 @@ export const UPDATE_HELPER = `${LOGS.update.title}${LOGS.update.end}
   node scripts/update-agent.mjs --scan --dry-run
   node scripts/update-agent.mjs --ip 192.168.1.105 --no-restart
   node scripts/update-agent.mjs --ip 192.168.1.106 --user SON
+  node scripts/update-agent.mjs --ip 192.168.1.200 --ssh-key ~/.ssh/id_ed25519 (only Linux)
 `;

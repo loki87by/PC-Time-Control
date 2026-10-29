@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Автономный скрипт удаленного обновления агента родительского контроля. *
- * НЕ требует запущенного приложения на родительском ПК.
- * Работает напрямую через SMB (административный доступ) и sc (управление службами).
+ * Автономный скрипт удаленного обновления агента родительского контроля.
+ *
+ * Windows: работает через SMB (административный доступ) и sc (управление службами).
+ * Linux:   работает через SSH/rsync и systemctl.
+ *
  * Использование:
  *   node scripts/update-agent.mjs [опции]
  * Опции:
@@ -12,7 +14,8 @@
  *   --dry-run          Показать, что будет сделано, без реальных действий
  *   --no-restart       Не перезапускать службу после обновления
  *   --no-deps          Не устанавливать зависимости (npm install)
- *   --user <домен\пользователь>  Имя пользователя для SMB-доступа (пароль из SMB_PASSWORD env)
+ *   --user <домен\пользователь>  Имя пользователя для SMB-доступа (Windows) или SSH user (Linux)
+ *   --ssh-key <путь>   Путь к SSH-ключу для Linux-хостов (по умолчанию ~/.ssh/id_rsa)
  *   --fix-remote-uac  Отключить UAC remote restrictions на целевом ПК (требуется админ-доступ)
  *   --help             Показать справку
  * Примеры:
@@ -21,6 +24,7 @@
  *   node scripts/update-agent.mjs --scan --dry-run
  *   node scripts/update-agent.mjs --ip 192.168.1.105 --no-restart
  *   node scripts/update-agent.mjs --ip 192.168.1.106 --user SON
+ *   node scripts/update-agent.mjs --ip 192.168.1.200 --ssh-key ~/.ssh/id_ed25519
  */
 
 import net from "net";
@@ -62,7 +66,8 @@ function parseArgs() {
     restart = true,
     deps = true,
     smbUser = null,
-    fixRemoteUac = false;
+    fixRemoteUac = false,
+    sshKey = null;
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -84,6 +89,9 @@ function parseArgs() {
       case "--user":
         if (args[i + 1] && !args[i + 1].startsWith("--")) smbUser = args[++i];
         break;
+      case "--ssh-key":
+        if (args[i + 1] && !args[i + 1].startsWith("--")) sshKey = args[++i];
+        break;
       case "--fix-remote-uac":
         fixRemoteUac = true;
         break;
@@ -96,7 +104,7 @@ function parseArgs() {
     );
     process.exit(1);
   }
-  return { ips, scan, dryRun, restart, deps, smbUser, fixRemoteUac };
+  return { ips, scan, dryRun, restart, deps, smbUser, fixRemoteUac, sshKey };
 }
 
 function log(msg, type) {
@@ -164,53 +172,36 @@ async function scanNetwork() {
 function netUseConnect(ip, smbUser) {
   const smbPass = process.env.SMB_PASSWORD || "";
 
-  // Сначала удаляем все предыдущие подключения к этому IP
   try {
-    execSync(`net use \\\\${ip}\\C$ /DELETE /Y 2>nul`, {
-      stdio: "ignore",
-      timeout: 5000,
-    });
+    execSync(PATHS.commands.winNetUseDelete(ip), { stdio: "ignore", timeout: 5000 });
   } catch {
     /* ignore */
   }
 
-  let cmd = `net use \\\\${ip}\\C$ /PERSISTENT:NO`;
-
-  if (smbUser) {
-    const user = smbUser.includes("\\") ? smbUser : `.\\${smbUser}`;
-    cmd += ` /USER:${user}`;
-    if (smbPass) cmd += ` ${smbPass}`;
-  }
+  const cmd = PATHS.commands.winNetUseConnect(ip, smbUser, smbPass);
   try {
     execSync(cmd, { stdio: "ignore", timeout: 10000 });
     return true;
   } catch (err) {
-    log(`net use error: ${err.message}`, "error");
+    log(`${LOGS.update.netUseError}${err.message}`, "error");
     return false;
   }
 }
 
 function fixRemoteUac(ip) {
-  log("Отключаю UAC remote restrictions...");
+  log(LOGS.update.uacDisabling);
   try {
-    execSync(
-      `reg add \\\\${ip}\\HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f`,
-      { stdio: "ignore", timeout: 10000 },
-    );
-    log("UAC remote restrictions отключены (требуется перезагрузка)", "ok");
-    log(
-      "  После перезагрузки целевого ПК net use C$ будет работать",
-      "text",
-    );
+    execSync(PATHS.commands.winRegFixUac(ip), { stdio: "ignore", timeout: 10000 });
+    log(LOGS.update.uacDisabled, "ok");
+    log(LOGS.update.uacHint, "text");
     return true;
   } catch (err) {
-    log(`Не удалось отключить UAC remote restrictions: ${err.message}`, "error");
+    log(`${LOGS.update.uacFailed}${err.message}`, "error");
     return false;
   }
 }
 
 function toSmbPath(ip, localPath) {
-  // C:\foo\bar -> \\ip\C$\foo\bar
   const driveLetter = localPath[0].toUpperCase();
   const rest = localPath.slice(2).replace(/\//g, "\\");
   return `\\\\${ip}\\${driveLetter}$${rest}`;
@@ -279,11 +270,7 @@ function copyToSmb(ip, remoteRoot, dryRun) {
   }
   netUseConnect(ip, null);
   try {
-    execSync(`if not exist "${remoteRoot}" mkdir "${remoteRoot}"`, {
-      shell: "cmd",
-      stdio: "ignore",
-      timeout: 5000,
-    });
+    execSync(PATHS.commands.winMkdir(remoteRoot), { shell: "cmd", stdio: "ignore", timeout: 5000 });
   } catch (err) {
     log(`${LOGS.update.mkDirErr}${remoteRoot}: ${err.message}`, "error");
     log(LOGS.update.checkPerms, "warn");
@@ -296,11 +283,7 @@ function copyToSmb(ip, remoteRoot, dryRun) {
     const dest = path.join(remoteRoot, rel);
     const destDir = path.dirname(dest);
     try {
-      execSync(`if not exist "${destDir}" mkdir "${destDir}"`, {
-        shell: "cmd",
-        stdio: "ignore",
-        timeout: 5000,
-      });
+      execSync(PATHS.commands.winMkdir(destDir), { shell: "cmd", stdio: "ignore", timeout: 5000 });
       fs.copyFileSync(file, dest);
       copied++;
     } catch (err) {
@@ -324,10 +307,7 @@ function installDepsRemote(ip, remoteRoot, dryRun) {
   }
   log(`${LOGS.update.npmInstall}${ip}...`);
   try {
-    execSync(
-      `powershell -Command "& {cd '${remoteRoot}'; npm install --no-audit --no-fund}"`,
-      { timeout: CONFIG.depsTimeout, stdio: "pipe" },
-    );
+    execSync(PATHS.commands.winPowershellNpmInstall(remoteRoot), { timeout: CONFIG.depsTimeout, stdio: "pipe" });
     log(LOGS.update.npmBeenInstall, "ok");
     return true;
   } catch (err) {
@@ -337,20 +317,108 @@ function installDepsRemote(ip, remoteRoot, dryRun) {
 }
 
 function getRemoteServiceName(ip) {
-  // Пробуем найти службу на удалённом ПК по известным именам
-  const candidates = ["pctimecontrol.exe", "pctimecontrol", "PCTimeControl", "KMonitor", "kids-monitor"];
-  for (const name of candidates) {
+  const cmds = PATHS.commands.scQueryCandidates(ip);
+  for (const cmd of cmds) {
     try {
-      const out = execSync(`sc \\\\${ip} query "${name}"`, {
-        timeout: 10000,
-        encoding: "utf8",
-      });
-      if (out.includes("SERVICE_NAME")) return name;
+      const out = execSync(cmd, { timeout: 10000, encoding: "utf8" });
+      if (out.includes("SERVICE_NAME")) {
+        const m = out.match(/SERVICE_NAME:\s*(\S+)/);
+        if (m) return m[1];
+      }
     } catch {
       // не найдена, пробуем следующую
     }
   }
   return SERVICE_NAME_FALLBACK;
+}
+
+/**
+ * Linux-specific: копирование файлов через rsync по SSH
+ */
+function copyViaRsync(ip, remoteRoot, sshUser, sshKey, dryRun) {
+  const files = collectFiles(PROJECT_ROOT);
+  log(
+    `${LOGS.update.copy}${files.length}${LOGS.update.filesTo}${remoteRoot}...`,
+  );
+
+  if (dryRun) {
+    log(`${LOGS.update.wasScan}${files.length}${LOGS.update.files}:`);
+    for (const f of files.slice(0, 10))
+      log(`  ${path.relative(PROJECT_ROOT, f)}`);
+    if (files.length > 10)
+      log(`${LOGS.update.more}${files.length - 10}${LOGS.update.files}`);
+    return true;
+  }
+
+  const userHost = PATHS.commands.sshBuildHost(ip, sshUser);
+  const keyOpt = PATHS.commands.sshKeyFlag(sshKey);
+
+  try {
+    execSync(PATHS.commands.sshMkdir(keyOpt, userHost, remoteRoot), { stdio: "ignore", timeout: 10000 });
+    const rsyncCmd = PATHS.commands.rsyncCopy(keyOpt, PROJECT_ROOT, userHost, remoteRoot);
+    execSync(rsyncCmd, { stdio: "pipe", timeout: 120000 });
+    log(`${LOGS.update.copied}${files.length}${LOGS.update.files}`, "ok");
+    return true;
+  } catch (err) {
+    log(`${LOGS.update.rsyncError}${err.message.slice(0, 200)}`, "error");
+    return false;
+  }
+}
+
+/**
+ * Linux-specific: установка зависимостей через SSH
+ */
+function installDepsViaSsh(ip, remoteRoot, sshUser, sshKey, dryRun) {
+  if (dryRun) {
+    log(`${LOGS.update.npmI}${remoteRoot}`);
+    return true;
+  }
+
+  const userHost = PATHS.commands.sshBuildHost(ip, sshUser);
+  const keyOpt = PATHS.commands.sshKeyOpt(sshKey);
+  log(`${LOGS.update.npmInstall}${ip}...`);
+
+  try {
+    execSync(PATHS.commands.sshNpmInstall(keyOpt, userHost, remoteRoot), { timeout: CONFIG.depsTimeout, stdio: "pipe" });
+    log(LOGS.update.npmBeenInstall, "ok");
+    return true;
+  } catch (err) {
+    log(`${LOGS.update.npmInstallErr}${err.message.slice(0, 200)}`, "error");
+    return false;
+  }
+}
+
+/**
+ * Linux-specific: перезапуск сервиса через SSH + systemctl
+ */
+function restartServiceViaSsh(ip, sshUser, sshKey, dryRun) {
+  const svcName = "pc-time-control";
+
+  if (dryRun) {
+    log(`${LOGS.update.serviceRestart}${svcName}${LOGS.update.on}${ip}`);
+    return true;
+  }
+
+  const userHost = PATHS.commands.sshBuildHost(ip, sshUser);
+  const keyOpt = PATHS.commands.sshKeyOpt(sshKey);
+
+  log(`${LOGS.update.serviceStop}${svcName}${LOGS.update.on}${ip}...`);
+  try {
+    execSync(PATHS.commands.sshSystemctlStop(keyOpt, userHost, svcName), { timeout: 60000 });
+    log(LOGS.update.serviceStopped, "ok");
+  } catch (err) {
+    log(`${LOGS.update.serviceStopErr}${(err.message || "").slice(0, 200)}`, "warn");
+  }
+
+  log(`${LOGS.update.serviceStart}${svcName}${LOGS.update.on}${ip}...`);
+  try {
+    execSync(PATHS.commands.sshSystemctlStart(keyOpt, userHost, svcName), { timeout: 120000 });
+    log(LOGS.update.serviceStarted, "ok");
+    return true;
+  } catch (err) {
+    log(`${LOGS.update.serviceStartErr}${(err.message || "").slice(0, 200)}`, "error");
+    return false;
+  }
 }
 
 function restartServiceRemote(ip, dryRun) {
@@ -359,28 +427,21 @@ function restartServiceRemote(ip, dryRun) {
     return true;
   }
 
-  // Сначала находим реальное имя службы на удалённом ПК
   const remoteServiceName = getRemoteServiceName(ip);
   if (!remoteServiceName) {
-    log(
-      `Не удалось найти службу на ${ip}. Перезапустите службу вручную: net stop PCTimeControl && net start PCTimeControl`,
-      "warn",
-    );
+    log(LOGS.update.serviceNotFound(ip), "warn");
     return false;
   }
 
   if (remoteServiceName !== SERVICE_NAME) {
-    log(
-      `Найдена служба с именем "${remoteServiceName}" (ожидалось "${SERVICE_NAME}")`,
-      "text",
-    );
+    log(LOGS.update.serviceNameMismatch(remoteServiceName, SERVICE_NAME), "text");
   }
 
   log(`${LOGS.update.serviceStop}${remoteServiceName}${LOGS.update.on}${ip}...`);
 
   let stopped = false;
   try {
-    execSync(`sc \\\\${ip} stop "${remoteServiceName}"`, { timeout: 60000 });
+    execSync(PATHS.commands.winScStop(ip, remoteServiceName), { timeout: 60000 });
     log(LOGS.update.serviceStopped, "ok");
     stopped = true;
   } catch (err) {
@@ -395,7 +456,7 @@ function restartServiceRemote(ip, dryRun) {
 
   log(`${LOGS.update.serviceStart}${remoteServiceName}${LOGS.update.on}${ip}...`);
   try {
-    execSync(`sc \\\\${ip} start "${remoteServiceName}"`, { timeout: 120000 });
+    execSync(PATHS.commands.winScStart(ip, remoteServiceName), { timeout: 120000 });
     log(LOGS.update.serviceStarted, "ok");
     return true;
   } catch (err) {
@@ -404,11 +465,37 @@ function restartServiceRemote(ip, dryRun) {
   }
 }
 
+/**
+ * Определяет, является ли целевой хост Linux, по ответу на GET_PLATFORM
+ */
+async function getRemotePlatform(ip) {
+  return new Promise((resolve) => {
+    const s = new net.Socket();
+    let data = "";
+    s.setTimeout(5000);
+    s.on("connect", () => s.write("GET_PLATFORM\n"));
+    s.on("data", (chunk) => {
+      data += chunk.toString();
+      if (data.endsWith("\n")) {
+        s.destroy();
+        const m = data.trim().match(/^OK:\s*(.+)$/);
+        resolve(m ? m[1] : null);
+      }
+    });
+    s.on("error", () => resolve(null));
+    s.on("timeout", () => {
+      s.destroy();
+      resolve(null);
+    });
+    s.connect(SERVER_PORT, ip);
+  });
+}
+
 async function updatePC(ip, options) {
-  const { dryRun, restart, deps, smbUser, fixRemoteUac } = options;
-  console.log(`\n${"=".repeat(50)}`);
+  const { dryRun, restart, deps, smbUser, fixRemoteUac: needsFixUac } = options;
+  console.log(`\n${LOGS.update.divider}`);
   log(`${LOGS.update.pcUpd}${ip}`);
-  console.log("=".repeat(50));
+  console.log(LOGS.update.divider);
   log(LOGS.update.ping);
 
   if (!(await tcpPing(ip, SERVER_PORT, 2000))) {
@@ -417,15 +504,21 @@ async function updatePC(ip, options) {
     return false;
   }
   log(`${ip}${LOGS.update.pingOk}`, "ok");
+
+  const platform = await getRemotePlatform(ip);
+  const isLinux = platform === "linux" || platform === "darwin";
+
+  if (isLinux) {
+    log(`${LOGS.update.platformDetected}Linux`, "ok");
+    return await updatePCLinux(ip, options);
+  }
+
   log(LOGS.update.hasAdmin);
 
   let connected = netUseConnect(ip, smbUser);
 
-  if (!connected && fixRemoteUac) {
-    log(
-      `Не удалось подключиться, пробую отключить UAC remote restrictions...`,
-      "warn",
-    );
+  if (!connected && needsFixUac) {
+    log(LOGS.update.smbConnectFailed(ip), "warn");
     fixRemoteUac(ip);
     connected = netUseConnect(ip, smbUser);
   }
@@ -434,16 +527,10 @@ async function updatePC(ip, options) {
     log(`${LOGS.update.hasNtAccess}${ip}\\C$`, "error");
     log(LOGS.update.checkPermsAndAccess);
     if (!smbUser) {
-      log(
-        `  Подсказка: попробуйте указать учётные данные: --user домен\\администратор`,
-        "warn",
-      );
+      log(LOGS.update.smbHintNoUser, "warn");
     }
     if (smbUser && !process.env.SMB_PASSWORD) {
-      log(
-        `  Подсказка: установите переменную SMB_PASSWORD с паролем пользователя`,
-        "warn",
-      );
+      log(LOGS.update.smbHintNoPass, "warn");
     }
     return false;
   }
@@ -473,6 +560,42 @@ async function updatePC(ip, options) {
 
   if (restart) {
     if (!restartServiceRemote(ip, dryRun)) {
+      log(LOGS.update.serviceRestartErr, "error");
+      return false;
+    }
+  } else log(LOGS.update.serviceRestartSkipped);
+
+  log(`${LOGS.update.pcUpd}${ip}${LOGS.update.end}`, "ok");
+  return true;
+}
+
+/**
+ * Linux-specific: обновление через SSH/rsync
+ */
+async function updatePCLinux(ip, options) {
+  const { dryRun, restart, deps, smbUser, sshKey } = options;
+  const remoteRoot = "/opt/pc-time-control";
+  const sshUser = smbUser || "root";
+
+  log(LOGS.update.pathRequest);
+  const appPath = await getRemoteAppPath(ip);
+  const effectiveRoot = appPath || remoteRoot;
+  log(`${LOGS.update.appPath}${effectiveRoot}`, "ok");
+
+  log(`${LOGS.update.copy}${LOGS.update.files}...`);
+
+  if (!copyViaRsync(ip, effectiveRoot, sshUser, sshKey, dryRun)) {
+    log(`${LOGS.update.files}${LOGS.update.withErrors}`, "error");
+    return false;
+  }
+
+  if (deps) {
+    if (!installDepsViaSsh(ip, effectiveRoot, sshUser, sshKey, dryRun))
+      log(LOGS.update.npmNotInstall, "warn");
+  } else log(LOGS.update.npmInstallSkipped);
+
+  if (restart) {
+    if (!restartServiceViaSsh(ip, sshUser, sshKey, dryRun)) {
       log(LOGS.update.serviceRestartErr, "error");
       return false;
     }
@@ -517,11 +640,11 @@ async function main() {
   for (const ip of targets) {
     (await updatePC(ip, options)) ? ok++ : fail++;
   }
-  console.log(`\n${"=".repeat(50)}`);
+  console.log(`\n${LOGS.update.divider}`);
   log(
     `${LOGS.update.success}${ok}${fail > 0 ? `, ${LOGS.update.withErrors} ${fail}` : ""}`,
   );
-  console.log("=".repeat(50));
+  console.log(LOGS.update.divider);
   process.exit(fail > 0 ? 1 : 0);
 }
 
