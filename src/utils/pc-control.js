@@ -32,24 +32,27 @@ export class PCTimeControl {
     this.sessionWarningsSent = new Set();
     this.pendingUnlockAfterBreak = false;
 
-    logger.info(`${LOGS.control.init}: ${this.currentUser}`);
+    this.updateActiveUser().then(() => {
+      logger.info(`${LOGS.control.init}: ${this.currentUser}`);
 
-    if (this.shouldMonitorUser()) {
-      logger.info(`${LOGS.control.monit}: ${this.currentUser}`);
-    } else {
-      logger.info(
-        `${LOGS.base.user} ${this.currentUser} ${LOGS.control.unmonit}`,
-      );
-    }
-    this.loadState()
-      .then(() => {
-        this.stateLoaded = true;
-        this.startMonitoring();
-      })
-      .catch((err) => {
-        logger.error(`${LOGS.control.stateLoadError} ${err.message}`);
-        this.startMonitoring();
-      });
+      if (this.shouldMonitorUser()) {
+        logger.info(`${LOGS.control.monit}: ${this.currentUser}`);
+      } else {
+        logger.info(
+          `${LOGS.base.user} ${this.currentUser} ${LOGS.control.unmonit}`,
+        );
+      }
+
+      this.loadState()
+        .then(() => {
+          this.stateLoaded = true;
+          this.startMonitoring();
+        })
+        .catch((err) => {
+          logger.error(`${LOGS.control.stateLoadError} ${err.message}`);
+          this.startMonitoring();
+        });
+    });
   }
 
   logWithTime(minutes) {
@@ -94,6 +97,11 @@ export class PCTimeControl {
     } else {
       return new Date();
     }
+  }
+
+  async updateActiveUser() {
+    const active = await this.getActiveUser();
+    if (active) this.currentUser = active;
   }
 
   shouldMonitorUser() {
@@ -517,6 +525,7 @@ export class PCTimeControl {
 
     this.monitorInterval = setInterval(async () => {
       try {
+        await this.updateActiveUser();
         const actualLocked = await this.checkIfLocked();
 
         if (this.isLocked && !actualLocked) {
