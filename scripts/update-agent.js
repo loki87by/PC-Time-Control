@@ -7,7 +7,7 @@
  * Linux:   работает через SSH/rsync и systemctl.
  *
  * Использование:
- *   node scripts/update-agent.mjs [опции]
+ *   node scripts/update-agent.js [опции]
  * Опции:
  *   --ip <адрес>       Обновить конкретный ПК (можно несколько: --ip 1.1.1.1 --ip 2.2.2.2)
  *   --scan             Сканировать локальную сеть в поиске ПК с приложением
@@ -19,12 +19,12 @@
  *   --fix-remote-uac  Отключить UAC remote restrictions на целевом ПК (требуется админ-доступ)
  *   --help             Показать справку
  * Примеры:
- *   node scripts/update-agent.mjs --scan
- *   node scripts/update-agent.mjs --ip 192.168.1.105
- *   node scripts/update-agent.mjs --scan --dry-run
- *   node scripts/update-agent.mjs --ip 192.168.1.105 --no-restart
- *   node scripts/update-agent.mjs --ip 192.168.1.106 --user SON
- *   node scripts/update-agent.mjs --ip 192.168.1.200 --ssh-key ~/.ssh/id_ed25519
+ *   node scripts/update-agent.js --scan
+ *   node scripts/update-agent.js --ip 192.168.1.105
+ *   node scripts/update-agent.js --scan --dry-run
+ *   node scripts/update-agent.js --ip 192.168.1.105 --no-restart
+ *   node scripts/update-agent.js --ip 192.168.1.106 --user SON
+ *   node scripts/update-agent.js --ip 192.168.1.200 --ssh-key ~/.ssh/id_ed25519
  */
 
 import net from "net";
@@ -36,17 +36,16 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { CONFIG } from "#config";
 import { LOGS, EXCLUDE_PATTERNS, UPDATE_HELPER, logWithTime } from "#consts";
+import { updatePC } from "./update-win.js";
+import { updatePCLinux } from "./update-linux.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PROJECT_ROOT = path.resolve(__dirname, "..");
+export const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
 const SERVER_PORT = CONFIG.serverPort;
-// Сначала пробуем имя из конфига, но на целевом ПК служба может называться иначе
-const SERVICE_NAME = CONFIG.serviceName;
-const SERVICE_NAME_FALLBACK = "pctimecontrol.exe";
 const SCAN_TIMEOUT = CONFIG.scanTimeout;
 
 function printUsage() {
@@ -107,7 +106,7 @@ function parseArgs() {
   return { ips, scan, dryRun, restart, deps, smbUser, fixRemoteUac, sshKey };
 }
 
-function log(msg, type) {
+export function log(msg, type) {
   const pre = LOGS.update[type] ? LOGS.update[type] : LOGS.update.text;
   console.log(`${pre} ${msg}${LOGS.update.end}`);
 }
@@ -169,45 +168,7 @@ async function scanNetwork() {
   return found;
 }
 
-function netUseConnect(ip, smbUser) {
-  const smbPass = process.env.SMB_PASSWORD || "";
-
-  try {
-    execSync(PATHS.commands.winNetUseDelete(ip), { stdio: "ignore", timeout: 5000 });
-  } catch {
-    /* ignore */
-  }
-
-  const cmd = PATHS.commands.winNetUseConnect(ip, smbUser, smbPass);
-  try {
-    execSync(cmd, { stdio: "ignore", timeout: 10000 });
-    return true;
-  } catch (err) {
-    log(`${LOGS.update.netUseError}${err.message}`, "error");
-    return false;
-  }
-}
-
-function fixRemoteUac(ip) {
-  log(LOGS.update.uacDisabling);
-  try {
-    execSync(PATHS.commands.winRegFixUac(ip), { stdio: "ignore", timeout: 10000 });
-    log(LOGS.update.uacDisabled, "ok");
-    log(LOGS.update.uacHint, "text");
-    return true;
-  } catch (err) {
-    log(`${LOGS.update.uacFailed}${err.message}`, "error");
-    return false;
-  }
-}
-
-function toSmbPath(ip, localPath) {
-  const driveLetter = localPath[0].toUpperCase();
-  const rest = localPath.slice(2).replace(/\//g, "\\");
-  return `\\\\${ip}\\${driveLetter}$${rest}`;
-}
-
-function getRemoteAppPath(ip) {
+export function getRemoteAppPath(ip) {
   return new Promise((resolve) => {
     const s = new net.Socket();
     let data = "";
@@ -239,7 +200,7 @@ function shouldExclude(rel) {
   return false;
 }
 
-function collectFiles(dir) {
+export function collectFiles(dir) {
   const files = [];
   try {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -255,214 +216,10 @@ function collectFiles(dir) {
   return files;
 }
 
-function copyToSmb(ip, remoteRoot, dryRun) {
-  const files = collectFiles(PROJECT_ROOT);
-  log(
-    `${LOGS.update.copy}${files.length}${LOGS.update.filesTo}${remoteRoot}...`,
-  );
-  if (dryRun) {
-    log(`${LOGS.update.wasScan}${files.length}${LOGS.update.files}:`);
-    for (const f of files.slice(0, 10))
-      log(`  ${path.relative(PROJECT_ROOT, f)}`);
-    if (files.length > 10)
-      log(`${LOGS.update.more}${files.length - 10}${LOGS.update.files}`);
-    return true;
-  }
-  netUseConnect(ip, null);
-  try {
-    execSync(PATHS.commands.winMkdir(remoteRoot), { shell: "cmd", stdio: "ignore", timeout: 5000 });
-  } catch (err) {
-    log(`${LOGS.update.mkDirErr}${remoteRoot}: ${err.message}`, "error");
-    log(LOGS.update.checkPerms, "warn");
-    return false;
-  }
-  let copied = 0,
-    errors = 0;
-  for (const file of files) {
-    const rel = path.relative(PROJECT_ROOT, file);
-    const dest = path.join(remoteRoot, rel);
-    const destDir = path.dirname(dest);
-    try {
-      execSync(PATHS.commands.winMkdir(destDir), { shell: "cmd", stdio: "ignore", timeout: 5000 });
-      fs.copyFileSync(file, dest);
-      copied++;
-    } catch (err) {
-      errors++;
-      if (errors <= 3)
-        log(`${LOGS.update.copyErr}${rel}: ${err.message}`, "warn");
-    }
-  }
-  log(
-    `${LOGS.update.copied}${copied}${LOGS.update.files}`,
-    errors ? "warn" : "ok",
-  );
-  if (errors > 0) log(`${LOGS.update.errors}${errors}`, "warn");
-  return errors === 0;
-}
-
-function installDepsRemote(ip, remoteRoot, dryRun) {
-  if (dryRun) {
-    log(`${LOGS.update.npmI}${remoteRoot}`);
-    return true;
-  }
-  log(`${LOGS.update.npmInstall}${ip}...`);
-  try {
-    execSync(PATHS.commands.winPowershellNpmInstall(remoteRoot), { timeout: CONFIG.depsTimeout, stdio: "pipe" });
-    log(LOGS.update.npmBeenInstall, "ok");
-    return true;
-  } catch (err) {
-    log(`${LOGS.update.npmInstallErr}${err.message}`, "error");
-    return false;
-  }
-}
-
-function getRemoteServiceName(ip) {
-  const cmds = PATHS.commands.scQueryCandidates(ip);
-  for (const cmd of cmds) {
-    try {
-      const out = execSync(cmd, { timeout: 10000, encoding: "utf8" });
-      if (out.includes("SERVICE_NAME")) {
-        const m = out.match(/SERVICE_NAME:\s*(\S+)/);
-        if (m) return m[1];
-      }
-    } catch {
-      // не найдена, пробуем следующую
-    }
-  }
-  return SERVICE_NAME_FALLBACK;
-}
-
-/**
- * Linux-specific: копирование файлов через rsync по SSH
- */
-function copyViaRsync(ip, remoteRoot, sshUser, sshKey, dryRun) {
-  const files = collectFiles(PROJECT_ROOT);
-  log(
-    `${LOGS.update.copy}${files.length}${LOGS.update.filesTo}${remoteRoot}...`,
-  );
-
-  if (dryRun) {
-    log(`${LOGS.update.wasScan}${files.length}${LOGS.update.files}:`);
-    for (const f of files.slice(0, 10))
-      log(`  ${path.relative(PROJECT_ROOT, f)}`);
-    if (files.length > 10)
-      log(`${LOGS.update.more}${files.length - 10}${LOGS.update.files}`);
-    return true;
-  }
-
-  const userHost = PATHS.commands.sshBuildHost(ip, sshUser);
-  const keyOpt = PATHS.commands.sshKeyFlag(sshKey);
-
-  try {
-    execSync(PATHS.commands.sshMkdir(keyOpt, userHost, remoteRoot), { stdio: "ignore", timeout: 10000 });
-    const rsyncCmd = PATHS.commands.rsyncCopy(keyOpt, PROJECT_ROOT, userHost, remoteRoot);
-    execSync(rsyncCmd, { stdio: "pipe", timeout: 120000 });
-    log(`${LOGS.update.copied}${files.length}${LOGS.update.files}`, "ok");
-    return true;
-  } catch (err) {
-    log(`${LOGS.update.rsyncError}${err.message.slice(0, 200)}`, "error");
-    return false;
-  }
-}
-
-/**
- * Linux-specific: установка зависимостей через SSH
- */
-function installDepsViaSsh(ip, remoteRoot, sshUser, sshKey, dryRun) {
-  if (dryRun) {
-    log(`${LOGS.update.npmI}${remoteRoot}`);
-    return true;
-  }
-
-  const userHost = PATHS.commands.sshBuildHost(ip, sshUser);
-  const keyOpt = PATHS.commands.sshKeyOpt(sshKey);
-  log(`${LOGS.update.npmInstall}${ip}...`);
-
-  try {
-    execSync(PATHS.commands.sshNpmInstall(keyOpt, userHost, remoteRoot), { timeout: CONFIG.depsTimeout, stdio: "pipe" });
-    log(LOGS.update.npmBeenInstall, "ok");
-    return true;
-  } catch (err) {
-    log(`${LOGS.update.npmInstallErr}${err.message.slice(0, 200)}`, "error");
-    return false;
-  }
-}
-
-/**
- * Linux-specific: перезапуск сервиса через SSH + systemctl
- */
-function restartServiceViaSsh(ip, sshUser, sshKey, dryRun) {
-  const svcName = "pc-time-control";
-
-  if (dryRun) {
-    log(`${LOGS.update.serviceRestart}${svcName}${LOGS.update.on}${ip}`);
-    return true;
-  }
-
-  const userHost = PATHS.commands.sshBuildHost(ip, sshUser);
-  const keyOpt = PATHS.commands.sshKeyOpt(sshKey);
-
-  log(`${LOGS.update.serviceStop}${svcName}${LOGS.update.on}${ip}...`);
-  try {
-    execSync(PATHS.commands.sshSystemctlStop(keyOpt, userHost, svcName), { timeout: 60000 });
-    log(LOGS.update.serviceStopped, "ok");
-  } catch (err) {
-    log(`${LOGS.update.serviceStopErr}${(err.message || "").slice(0, 200)}`, "warn");
-  }
-
-  log(`${LOGS.update.serviceStart}${svcName}${LOGS.update.on}${ip}...`);
-  try {
-    execSync(PATHS.commands.sshSystemctlStart(keyOpt, userHost, svcName), { timeout: 120000 });
-    log(LOGS.update.serviceStarted, "ok");
-    return true;
-  } catch (err) {
-    log(`${LOGS.update.serviceStartErr}${(err.message || "").slice(0, 200)}`, "error");
-    return false;
-  }
-}
-
-function restartServiceRemote(ip, dryRun) {
-  if (dryRun) {
-    log(`${LOGS.update.serviceRestart}${SERVICE_NAME}${LOGS.update.on}${ip}`);
-    return true;
-  }
-
-  const remoteServiceName = getRemoteServiceName(ip);
-  if (!remoteServiceName) {
-    log(LOGS.update.serviceNotFound(ip), "warn");
-    return false;
-  }
-
-  if (remoteServiceName !== SERVICE_NAME) {
-    log(LOGS.update.serviceNameMismatch(remoteServiceName, SERVICE_NAME), "text");
-  }
-
-  log(`${LOGS.update.serviceStop}${remoteServiceName}${LOGS.update.on}${ip}...`);
-
-  let stopped = false;
-  try {
-    execSync(PATHS.commands.winScStop(ip, remoteServiceName), { timeout: 60000 });
-    log(LOGS.update.serviceStopped, "ok");
-    stopped = true;
-  } catch (err) {
-    const msg = err.message || "";
-    if (msg.includes("1062") || msg.includes("1058")) {
-      log(LOGS.update.serviceStopped, "ok");
-      stopped = true;
-    } else {
-      log(`${LOGS.update.serviceStopErr}${msg.slice(0, 200)}`, "warn");
-    }
-  }
-
-  log(`${LOGS.update.serviceStart}${remoteServiceName}${LOGS.update.on}${ip}...`);
-  try {
-    execSync(PATHS.commands.winScStart(ip, remoteServiceName), { timeout: 120000 });
-    log(LOGS.update.serviceStarted, "ok");
-    return true;
-  } catch (err) {
-    log(`${LOGS.update.serviceStartErr}${(err.message || "").slice(0, 200)}`, "error");
-    return false;
-  }
+export function toSmbPath(ip, localPath) {
+  const driveLetter = localPath[0].toUpperCase();
+  const rest = localPath.slice(2).replace(/\//g, "\\");
+  return `\\\\${ip}\\${driveLetter}$${rest}`;
 }
 
 /**
@@ -491,8 +248,10 @@ async function getRemotePlatform(ip) {
   });
 }
 
-async function updatePC(ip, options) {
-  const { dryRun, restart, deps, smbUser, fixRemoteUac: needsFixUac } = options;
+/**
+ * Определяет платформу и делегирует обновление в соответствующий модуль
+ */
+async function updatePCOverall(ip, options) {
   console.log(`\n${LOGS.update.divider}`);
   log(`${LOGS.update.pcUpd}${ip}`);
   console.log(LOGS.update.divider);
@@ -513,96 +272,7 @@ async function updatePC(ip, options) {
     return await updatePCLinux(ip, options);
   }
 
-  log(LOGS.update.hasAdmin);
-
-  let connected = netUseConnect(ip, smbUser);
-
-  if (!connected && needsFixUac) {
-    log(LOGS.update.smbConnectFailed(ip), "warn");
-    fixRemoteUac(ip);
-    connected = netUseConnect(ip, smbUser);
-  }
-
-  if (!connected) {
-    log(`${LOGS.update.hasNtAccess}${ip}\\C$`, "error");
-    log(LOGS.update.checkPermsAndAccess);
-    if (!smbUser) {
-      log(LOGS.update.smbHintNoUser, "warn");
-    }
-    if (smbUser && !process.env.SMB_PASSWORD) {
-      log(LOGS.update.smbHintNoPass, "warn");
-    }
-    return false;
-  }
-  log(`${LOGS.update.hasAccess}${ip}`, "ok");
-  log(LOGS.update.pathRequest);
-  const appPath = await getRemoteAppPath(ip);
-
-  if (!appPath) {
-    log(`${LOGS.update.pathReject}${ip}`, "error");
-    log(LOGS.update.isTargetActual, "warn");
-    return false;
-  }
-  log(`${LOGS.update.appPath}${appPath}`, "ok");
-  const remoteRoot = toSmbPath(ip, appPath);
-  log(`${LOGS.update.smbPath}${remoteRoot}`);
-  log(`${LOGS.update.copy}${LOGS.update.files}...`);
-
-  if (!copyToSmb(ip, remoteRoot, dryRun)) {
-    log(`${LOGS.update.files}${LOGS.update.withErrors}`, "error");
-    return false;
-  }
-
-  if (deps) {
-    if (!installDepsRemote(ip, remoteRoot, dryRun))
-      log(LOGS.update.npmNotInstall, "warn");
-  } else log(LOGS.update.npmInstallSkipped);
-
-  if (restart) {
-    if (!restartServiceRemote(ip, dryRun)) {
-      log(LOGS.update.serviceRestartErr, "error");
-      return false;
-    }
-  } else log(LOGS.update.serviceRestartSkipped);
-
-  log(`${LOGS.update.pcUpd}${ip}${LOGS.update.end}`, "ok");
-  return true;
-}
-
-/**
- * Linux-specific: обновление через SSH/rsync
- */
-async function updatePCLinux(ip, options) {
-  const { dryRun, restart, deps, smbUser, sshKey } = options;
-  const remoteRoot = "/opt/pc-time-control";
-  const sshUser = smbUser || "root";
-
-  log(LOGS.update.pathRequest);
-  const appPath = await getRemoteAppPath(ip);
-  const effectiveRoot = appPath || remoteRoot;
-  log(`${LOGS.update.appPath}${effectiveRoot}`, "ok");
-
-  log(`${LOGS.update.copy}${LOGS.update.files}...`);
-
-  if (!copyViaRsync(ip, effectiveRoot, sshUser, sshKey, dryRun)) {
-    log(`${LOGS.update.files}${LOGS.update.withErrors}`, "error");
-    return false;
-  }
-
-  if (deps) {
-    if (!installDepsViaSsh(ip, effectiveRoot, sshUser, sshKey, dryRun))
-      log(LOGS.update.npmNotInstall, "warn");
-  } else log(LOGS.update.npmInstallSkipped);
-
-  if (restart) {
-    if (!restartServiceViaSsh(ip, sshUser, sshKey, dryRun)) {
-      log(LOGS.update.serviceRestartErr, "error");
-      return false;
-    }
-  } else log(LOGS.update.serviceRestartSkipped);
-
-  log(`${LOGS.update.pcUpd}${ip}${LOGS.update.end}`, "ok");
-  return true;
+  return await updatePC(ip, options);
 }
 
 async function main() {
@@ -638,7 +308,7 @@ async function main() {
     fail = 0;
 
   for (const ip of targets) {
-    (await updatePC(ip, options)) ? ok++ : fail++;
+    (await updatePCOverall(ip, options)) ? ok++ : fail++;
   }
   console.log(`\n${LOGS.update.divider}`);
   log(

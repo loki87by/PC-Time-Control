@@ -8,7 +8,7 @@
     "#config": "./src/setup/config.js",
     "#web/*": "./src/web/*.js",
     "#utils/*": "./src/utils/*.js",
-    "#consts": "./src/utils/consts.js"
+    "#consts": "./src/constants/consts.js"
   },
   "scripts": {
     "start": "node index.js",
@@ -17,7 +17,7 @@
     "install-service-linux": "sudo node src/setup/installer-linux.js",
     "uninstall-service-linux": "sudo node src/setup/installer-linux.js uninstall",
     "service-status-linux": "node src/setup/installer-linux.js status",
-    "update-children": "node scripts/update-agent.mjs --scan"
+    "update-children": "node scripts/update-agent.js --scan"
   },
   "dependencies": {
     "dotenv": "^18.0.5",
