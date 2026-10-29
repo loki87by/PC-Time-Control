@@ -133,11 +133,11 @@ echo "%sudo ALL=(ALL) NOPASSWD: /sbin/shutdown" | sudo tee /etc/sudoers.d/shutdo
 
 ### frp не восстанавливается после рестарта ВМ
 
-См. [05-frp-auto-refresh.md](./05-frp-auto-refresh.md). Проверьте:
+См. [frp-auto-refresh.md](./frp-auto-refresh.md). Проверьте:
 
 - `.env` заполнен;
 - имена переменных не `USER`/`USERNAME`;
 - API-роут доступен;
 - служба frp запущена (`systemctl status frp-server`).
 
-[← Назад: Linux Setup](./06-linux-setup.md) | [Оглавление](../README.md)
+[← Назад: Linux Setup](./linux-setup.md) | [Оглавление](../README.md)

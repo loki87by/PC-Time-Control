@@ -153,4 +153,4 @@ node scripts/update-agent.mjs --ip 192.168.1.100 --ssh-key ~/.ssh/id_rsa
 - Пользователь с доступом по SSH (пароль или ключ)
 - `sudo` для перезапуска сервиса (или запуск от root)
 
-[← Назад: SMB/C$](./06-smb-setup.md) | [Оглавление](../README.md) | [Далее: устранение проблем →](./07-troubleshooting.md)
+[← Назад: SMB/C$](./smb-setup.md) | [Оглавление](../README.md) | [Далее: устранение проблем →](./troubleshooting.md)

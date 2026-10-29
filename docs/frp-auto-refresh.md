@@ -33,4 +33,4 @@ PASS="your-strong-password"
 IP="http://your-server-ip:8080"
 ```
 
-[← Назад: внешний доступ](./04-external-access.md) | [Оглавление](../README.md) | [Далее: SMB/C$ →](./06-smb-setup.md)
+[← Назад: внешний доступ](./external-access.md) | [Оглавление](../README.md) | [Далее: SMB/C$ →](./smb-setup.md)

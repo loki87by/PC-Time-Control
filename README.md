@@ -7,15 +7,15 @@
 
 | Раздел | Описание |
 | --- | --- |
-| [Обзор и изменения](docs/00-overview.md) | Что нового, ключевые возможности |
-| [Установка](docs/01-install.md) | Node.js, зависимости, служба Windows |
-| [Настройка](docs/02-config.md) | `config.js`, пользователи, лимиты |
-| [Удалённое управление](docs/03-remote-control.md) | TCP-порт 9999 и веб-интерфейс |
-| [Внешний доступ (frp)](docs/04-external-access.md) | Проброс через публичный сервер |
-| [Авто-восстановление проброса](docs/05-frp-auto-refresh.md) | Обновление frp при рестартах ВМ |
-| [Доступ к C$ по SMB](docs/06-smb-setup.md) | Настройка целевого ПК для удалённого обновления (Windows) |
-| [Настройка Linux](docs/06-linux-setup.md) | Linux: зависимости, firewall, обновление через SSH |
-| [Устранение проблем](docs/07-troubleshooting.md) | Частые ошибки (Windows + Linux) |
+| [Обзор и изменения](docs/overview.md) | Что нового, ключевые возможности |
+| [Установка](docs/install.md) | Node.js, зависимости, служба Windows |
+| [Настройка](docs/config.md) | `config.js`, пользователи, лимиты |
+| [Удалённое управление](docs/remote-control.md) | TCP-порт 9999 и веб-интерфейс |
+| [Внешний доступ (frp)](docs/external-access.md) | Проброс через публичный сервер |
+| [Авто-восстановление проброса](docs/frp-auto-refresh.md) | Обновление frp при рестартах ВМ |
+| [Доступ к C$ по SMB](docs/smb-setup.md) | Настройка целевого ПК для удалённого обновления (Windows) |
+| [Настройка Linux](docs/linux-setup.md) | Linux: зависимости, firewall, обновление через SSH |
+| [Устранение проблем](docs/troubleshooting.md) | Частые ошибки (Windows + Linux) |
 
 ## Установка зависимостей
 
@@ -43,4 +43,4 @@ npm run install-service
 npm run install-service-linux
 ```
 
-Подробности — в [docs/01-install.md](docs/01-install.md).
+Подробности — в [docs/install.md](docs/install.md).

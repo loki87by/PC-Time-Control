@@ -5,47 +5,7 @@
 - Node.js 16+
 - **Windows** (для службы и автозагрузки) или **Linux** (systemd)
 
-## Windows
-
-1. Клонируйте репозиторий:
-
-   ```bash
-   git clone <URL_РЕПОЗИТОРИЯ>
-   cd pc-time-control
-   ```
-
-2. Установите зависимости:
-
-   ```bash
-   npm install
-   ```
-
-3. Ручной запуск:
-
-   ```bash
-   npm start
-   ```
-
-4. Установка как службы Windows (запускать **от администратора**):
-
-   ```bash
-   npm run install-service
-   ```
-
-5. Управление службой
-
-   ```bash
-   net start PCTimeControl   # запуск
-   net stop  PCTimeControl   # остановка
-   npm run uninstall-service # удаление
-   ```
-
-6. **Автозагрузка (резервная).** Поместите ярлык на `start-service.bat`
-   (или на `npm start`) в папку Startup: `Win+R` → `shell:startup`.
-
----
-
-## Linux (systemd)
+## Общие шаги
 
 1. Клонируйте репозиторий:
 
@@ -66,7 +26,37 @@
    npm start
    ```
 
-4. Установка как systemd-сервиса (автозагрузка + фоновый режим):
+После проверки переходите к настройке под свою ОС:
+
+- [Windows →](#windows)
+- [Linux →](#linux-systemd)
+
+---
+
+## Windows
+
+1. Установка как службы Windows (запускать **от администратора**):
+
+   ```bash
+   npm run install-service
+   ```
+
+2. Управление службой
+
+   ```bash
+   net start PCTimeControl   # запуск
+   net stop  PCTimeControl   # остановка
+   npm run uninstall-service # удаление
+   ```
+
+3. **Автозагрузка (резервная).** Поместите ярлык на `start-service.bat`
+   (или на `npm start`) в папку Startup: `Win+R` → `shell:startup`.
+
+---
+
+## Linux (systemd)
+
+1. Установка как systemd-сервиса (автозагрузка + фоновый режим):
 
    ```bash
    npm run install-service-linux
@@ -78,7 +68,7 @@
    - Включит автозагрузку (`systemctl enable`)
    - Запустит сервис (`systemctl start`)
 
-5. Управление сервисом:
+2. Управление сервисом:
 
    ```bash
    sudo systemctl status pc-time-control    # статус
@@ -90,7 +80,7 @@
    npm run service-status-linux          # статус без sudo
    ```
 
-6. **Зависимости для работы на Linux:**
+3. **Зависимости для работы на Linux:**
 
    - `libnotify-bin` — для графических уведомлений (`notify-send`):
 
@@ -102,6 +92,6 @@
    - `loginctl` (входит в `systemd`) — для блокировки экрана и определения пользователя.
    - `lsof` — для освобождения портов при перезапуске.
 
-   Подробнее: [Настройка Linux →](./06-linux-setup.md)
+   Подробнее: [Настройка Linux →](./linux-setup.md)
 
-[← Назад к оглавлению](../README.md) | [Далее: настройка →](./02-config.md)
+[← Назад к оглавлению](../README.md) | [Далее: настройка →](./config.md)

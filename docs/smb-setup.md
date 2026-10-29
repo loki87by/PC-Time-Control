@@ -96,4 +96,4 @@ net use \\<TARGET_IP>\C$ /USER:.\<USER> *
 
 Если net use вручную работает — скрипт тоже заработает.
 
-[← Назад: авто-восстановление](./05-frp-auto-refresh.md) | [Оглавление](../README.md) | [Далее: настройка Linux →](./06-linux-setup.md) | [Устранение проблем →](./07-troubleshooting.md)
+[← Назад: авто-восстановление](./frp-auto-refresh.md) | [Оглавление](../README.md) | [Далее: настройка Linux →](./linux-setup.md) | [Устранение проблем →](./troubleshooting.md)
