@@ -53,7 +53,7 @@ export function fixRemoteUac(ip) {
 /**
  * Копирование файлов через SMB
  */
-export function copyToSmb(ip, remoteRoot, dryRun) {
+export function copyToSmb(ip, remoteRoot, dryRun, smbUser) {
   const files = collectFiles(PROJECT_ROOT);
   log(
     `${LOGS.update.copy}${files.length}${LOGS.update.filesTo}${remoteRoot}...`,
@@ -66,7 +66,7 @@ export function copyToSmb(ip, remoteRoot, dryRun) {
       log(`${LOGS.update.more}${files.length - 10}${LOGS.update.files}`);
     return true;
   }
-  netUseConnect(ip, null);
+  netUseConnect(ip, smbUser);
   try {
     execSync(PATHS.commands.winMkdir(remoteRoot), { shell: "cmd", stdio: "ignore", timeout: 5000 });
   } catch (err) {
@@ -226,7 +226,7 @@ export async function updatePC(ip, options) {
   log(`${LOGS.update.smbPath}${remoteRoot}`);
   log(`${LOGS.update.copy}${LOGS.update.files}...`);
 
-  if (!copyToSmb(ip, remoteRoot, dryRun)) {
+  if (!copyToSmb(ip, remoteRoot, dryRun, smbUser)) {
     log(`${LOGS.update.files}${LOGS.update.withErrors}`, "error");
     return false;
   }

@@ -1,3 +1,37 @@
+import { LOGS } from "./logs.js";
+
+function logWithTime(seconds) {
+  const rounded = Math.round(seconds);
+  const secs = rounded % 60;
+  const minutes = (rounded - secs) / 60;
+  const mins = minutes % 60;
+  const hrs = (minutes - mins) / 60;
+  const hourLog =
+    hrs > 0
+      ? `${hrs} ${LOGS.base.hour}${getWordsWithNumsCompletion(hrs, ["", "?", "??"])} `
+      : "";
+  const minsLog =
+    mins > 0 || (hrs > 0 && secs > 0)
+      ? `${mins} ${LOGS.base.minute}${getWordsWithNumsCompletion(mins)} `
+      : "";
+  const secsLog =
+    secs > 0
+      ? `${secs} ${LOGS.base.second}${getWordsWithNumsCompletion(secs)}`
+      : "";
+
+  return `${hourLog}${minsLog}${secsLog}`;
+}
+
+function getWordsWithNumsCompletion(numeral, completions = ["?", "?", ""]) {
+  if (!numeral || !isFinite(+numeral)) return "";
+  const divisionRemainder =
+    +numeral % 10 === 1 && +`${numeral}`.slice(`${numeral}`.length - 2) !== 11;
+  const divisionRemainder2 =
+    [2, 3, 4].includes(+numeral % 10) &&
+    +`${numeral}`.slice(`${numeral}`.length - 2, `${numeral}`.length - 1) !== 1;
+  return `${divisionRemainder ? completions[0] : divisionRemainder2 ? completions[1] : completions[2]}`;
+}
+
 export const PATHS = {
   library: "node_modules/@qiudaomao/node-frp/src/cli.js",
   config: "frpc.yaml",
@@ -26,6 +60,24 @@ export const PATHS = {
       const candidates = ["pctimecontrol.exe", "pctimecontrol", "PCTimeControl", "pc-time-control"];
       return candidates.map((n) => `sc \\\\${ip} query "${n}"`);
     },
+    winScQuery: (ip, name) => `sc \\\\${ip} query "${name}"`,
+    winScStop: (ip, name) => `sc \\\\${ip} stop "${name}"`,
+    winScStart: (ip, name) => `sc \\\\${ip} start "${name}"`,
+    winNetUseDelete: (ip) => `net use \\\\${ip}\\C$ /DELETE /Y 2>nul`,
+    winNetUseConnect: (ip, user, pass) => {
+      let cmd = `net use \\\\${ip}\\C$ /PERSISTENT:NO`;
+      if (user) {
+        const u = user.includes("\\") ? user : `.\\${user}`;
+        cmd += ` /USER:${u}`;
+        if (pass) cmd += ` ${pass}`;
+      }
+      return cmd;
+    },
+    winMkdir: (dir) => `if not exist "${dir}" mkdir "${dir}"`,
+    winRegFixUac: (ip) =>
+      `reg add \\\\${ip}\\HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f`,
+    winPowershellNpmInstall: (dir) =>
+      `powershell -Command "& {cd '${dir}'; npm install --no-audit --no-fund}"`,
     // Linux
     logonLinux: 'ps aux | grep -E "gnome-screensaver|kscreensaver|light-locker|xflock4" | grep -v grep',
     lockedCheckLinux: 'loginctl list-sessions 2>/dev/null | grep -E "seat|lock" || true',
