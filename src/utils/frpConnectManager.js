@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import { CONFIG } from "../setup/config.js";
-import { PATHS } from "../utils/consts.js";
+import { PATHS } from "../constants/consts.js";
 
 dotenv.config();
 

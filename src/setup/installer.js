@@ -4,7 +4,7 @@ import path from "path";
 import { execSync } from "child_process";
 import { fileURLToPath, pathToFileURL } from "url";
 
-import { LOGS, PATHS } from "../utils/consts.js";
+import { LOGS, PATHS } from "../constants/consts.js";
 
 // Windows-only: проверяем платформу
 if (process.platform !== "win32") {
