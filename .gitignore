@@ -4,6 +4,7 @@
 /node_modules
 /.idea
 /.vscode/*
+/.gigacode_vsc/*
 /.pnp
 .pnp.js
 test.js
