@@ -321,6 +321,12 @@ export class PCTimeControl {
     return [...new Set(candidates)].filter(Boolean);
   }
 
+  _isSystemUser(user) {
+    if (!user) return true;
+    const systemUsers = ["SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE"];
+    return systemUsers.includes(user.toUpperCase());
+  }
+
   async lockPC() {
     try {
       if (process.platform === "win32") {
@@ -329,6 +335,10 @@ export class PCTimeControl {
         logger.info(`${LOGS.control.lock} (users: ${lockUsers.join(", ")})`);
 
         for (const user of lockUsers) {
+          if (this._isSystemUser(user)) {
+            logger.warn(`${LOGS.control.skipSystemUser} ${user}`);
+            continue;
+          }
           if (user === this.currentUser) {
             exec(PATHS.commands.lockWorkStation, { windowsHide: true });
           } else {
@@ -432,6 +442,10 @@ export class PCTimeControl {
       if (process.platform === "win32") {
         const lockUsers = this._resolveLockUsers();
         for (const user of lockUsers) {
+          if (this._isSystemUser(user)) {
+            logger.warn(`${LOGS.control.skipSystemUser} ${user}`);
+            continue;
+          }
           const cmd = PATHS.commands.showMessageWin(message, title, user);
           exec(cmd, { windowsHide: true });
         }

@@ -105,6 +105,7 @@ export const LOGS = {
     resetSessionTime: "Время сессии сброшено",
     lockMessageTimeout: (time) =>
       `⚠️ Компьютер будет заблокирован через ${time} минут!`,
+    skipSystemUser: "⚠️ Пропускаем системного пользователя",
   },
   remote: {
     connect: "Клиент подключен",
