@@ -148,7 +148,7 @@ function installStartupShortcut() {
     const psScript = PATHS.commands.winStartupPsScript(
       shortcutPath, process.execPath, SCRIPT_PATH, PROJECT_ROOT,
     );
-    execSync(`powershell -Command "& {${psScript}}"`, { stdio: "ignore" });
+    execSync(`powershell -Command "& {${psScript}}"`, { stdio: "ignore", windowsHide: true });
     console.log(LOGS.setup.startupSuccess);
   } catch (err) {
     console.log(`${LOGS.setup.startupFailed}: ${err.message}`);

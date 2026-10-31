@@ -246,7 +246,7 @@ export class PCTimeControl {
     }
     try {
       if (process.platform === "win32") {
-        const { stdout } = await execPromise(PATHS.commands.logon);
+        const { stdout } = await execPromise(PATHS.commands.logon, { windowsHide: true });
         return stdout.includes("LogonUI.exe");
       }
       // Linux fallback
@@ -274,7 +274,7 @@ export class PCTimeControl {
   async getActiveUser() {
     try {
       if (process.platform === "win32") {
-        const { stdout } = await execPromise(PATHS.commands.qwinsta);
+        const { stdout } = await execPromise(PATHS.commands.qwinsta, { windowsHide: true });
         const lines = stdout.split("\n");
         for (const line of lines) {
           if (
@@ -330,10 +330,10 @@ export class PCTimeControl {
 
         for (const user of lockUsers) {
           if (user === this.currentUser) {
-            exec(PATHS.commands.lockWorkStation);
+            exec(PATHS.commands.lockWorkStation, { windowsHide: true });
           } else {
             const cmd = PATHS.commands.lockRemoteWin(user);
-            await execPromise(cmd);
+            await execPromise(cmd, { windowsHide: true });
           }
         }
         logger.info(LOGS.control.lock);
@@ -388,7 +388,7 @@ export class PCTimeControl {
       this.isShuttingDown = true;
 
       if (process.platform === "win32") {
-        exec(PATHS.commands.shutdownWin(Math.round(seconds)));
+        exec(PATHS.commands.shutdownWin(Math.round(seconds)), { windowsHide: true });
         const logTime =
           seconds < 60
             ? `${seconds}${LOGS.base.second}${getWordsWithNumsCompletion(seconds)}`
@@ -396,7 +396,7 @@ export class PCTimeControl {
         logger.info(`${LOGS.control.shutdownTimeout} ${logTime}`);
       } else {
         const minutes = Math.ceil(seconds / 60);
-        exec(PATHS.commands.shutdownLinux(minutes));
+        exec(PATHS.commands.shutdownLinux(minutes), { windowsHide: true });
         logger.info(
           `${LOGS.control.shutdownTimeout} ${this.logWithTime(minutes)}`,
         );
@@ -410,13 +410,13 @@ export class PCTimeControl {
   cancelShutdown(needLogs = true) {
     try {
       if (process.platform === "win32") {
-        exec(PATHS.commands.shutdownAbort);
+        exec(PATHS.commands.shutdownAbort, { windowsHide: true });
         this.isShuttingDown = false;
 
         if (this.delayShutdownTime) this.delayShutdownCancelled = true;
         if (needLogs) logger.info(LOGS.control.shutdownAbort);
       } else {
-        exec(PATHS.commands.cancelShutdownLinux);
+        exec(PATHS.commands.cancelShutdownLinux, { windowsHide: true });
         this.isShuttingDown = false;
 
         if (this.delayShutdownTime) this.delayShutdownCancelled = true;

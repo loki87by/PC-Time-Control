@@ -165,7 +165,7 @@ export class WebServer {
     this.server = null;
 
     if (process.platform === "win32") {
-      exec(`${PATHS.commands.getPid} :${CONFIG.webPort}`, (err, stdout) => {
+      exec(`${PATHS.commands.getPid} :${CONFIG.webPort}`, { windowsHide: true }, (err, stdout) => {
         if (!err && stdout) {
           const lines = stdout.split("\n");
           for (const line of lines) {
@@ -173,7 +173,7 @@ export class WebServer {
 
             if (parts.length > 4) {
               const pid = parts[parts.length - 1];
-              exec(`${PATHS.commands.cleanPort} ${pid}`);
+              exec(`${PATHS.commands.cleanPort} ${pid}`, { windowsHide: true });
             }
           }
         }
