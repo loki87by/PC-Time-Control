@@ -310,8 +310,14 @@ export class PCTimeControl {
     }
   }
 
-  _resolveLockUsers() {
-    const active = this.currentUser;
+  async _resolveLockUsers() {
+    let active = this.currentUser;
+    if (this._isSystemUser(active)) {
+      const realUser = await this.getActiveUser();
+      if (realUser && !this._isSystemUser(realUser)) {
+        active = realUser;
+      }
+    }
     const fromConfig = [];
 
     if (CONFIG.lockUserId) fromConfig.push(CONFIG.lockUserId);
@@ -331,15 +337,17 @@ export class PCTimeControl {
     try {
       if (process.platform === "win32") {
         this.isLocked = true;
-        const lockUsers = this._resolveLockUsers();
+        const lockUsers = await this._resolveLockUsers();
         logger.info(`${LOGS.control.lock} (users: ${lockUsers.join(", ")})`);
+
+        const isSystemService = this._isSystemUser(this.currentUser);
 
         for (const user of lockUsers) {
           if (this._isSystemUser(user)) {
             logger.warn(`${LOGS.control.skipSystemUser} ${user}`);
             continue;
           }
-          if (user === this.currentUser) {
+          if (!isSystemService && user === this.currentUser) {
             exec(PATHS.commands.lockWorkStation, { windowsHide: true });
           } else {
             const cmd = PATHS.commands.lockRemoteWin(user);
@@ -440,7 +448,7 @@ export class PCTimeControl {
   async showMessage(message, title = CONFIG.msgTitle) {
     try {
       if (process.platform === "win32") {
-        const lockUsers = this._resolveLockUsers();
+        const lockUsers = await this._resolveLockUsers();
         for (const user of lockUsers) {
           if (this._isSystemUser(user)) {
             logger.warn(`${LOGS.control.skipSystemUser} ${user}`);
@@ -557,7 +565,7 @@ export class PCTimeControl {
               breakRemaining !== null
                 ? `${LOGS.control.remain} ${this.logWithTime(breakRemaining)}`
                 : LOGS.control.isOnBreak;
-            this.showMessage(
+            await this.showMessage(
               `${LOGS.control.pauseNotEnd} (${remainingMsg})`,
               LOGS.control.accessDenied,
             );
@@ -569,7 +577,7 @@ export class PCTimeControl {
           }
 
           if (this.pendingUnlockAfterBreak) {
-            this.endBreak();
+            await this.endBreak();
             this.pendingUnlockAfterBreak = false;
             logger.info(
               `${LOGS.control.newSession} ${LOGS.control.afterPause}`,
@@ -621,7 +629,7 @@ export class PCTimeControl {
         logger.info(
           `${LOGS.control.useLimit} ${this.logWithTime(this.usageLimit)}`,
         );
-        this.showMessage(
+        await this.showMessage(
           `${LOGS.control.useLimit} ${this.logWithTime(this.usageLimit)}`,
         );
         await this.lockPC();
@@ -647,7 +655,7 @@ export class PCTimeControl {
         if (timeRemaining <= interval && !this.warningsSent.has(key)) {
           this.warningsSent.add(key);
           const msg = LOGS.control.lockMessageTimeout(interval);
-          this.showMessage(msg, "Warning");
+          await this.showMessage(msg, "Warning");
           logger.info(
             `${LOGS.control.sendWarn} ${LOGS.control.lockMessageTimeout(interval)}`,
           );
@@ -726,7 +734,7 @@ export class PCTimeControl {
     this.saveState();
   }
 
-  endBreak() {
+  async endBreak() {
     this.isOnBreak = false;
     this.breakStartTime = null;
     this.pendingUnlockAfterBreak = false;
@@ -734,7 +742,7 @@ export class PCTimeControl {
     this.sessionWarningsSent.clear();
     logger.info(LOGS.control.handleEnd);
     this.saveState();
-    this.showMessage(
+    await this.showMessage(
       `🎯 ${LOGS.control.newSession}! ${this.logWithTime(this.sessionLimit)}.`,
       LOGS.control.newSession,
     );
@@ -755,7 +763,7 @@ export class PCTimeControl {
       logger.info(
         `${LOGS.control.sessionEnd} (${this.logWithTime(this.sessionLimit)})`,
       );
-      this.showMessage(
+      await this.showMessage(
         `⏰ ${LOGS.control.sessionEnd}! ${LOGS.control.sleep} ${this.logWithTime(breakDuration)}.`,
       );
       this.startBreak();
@@ -769,7 +777,7 @@ export class PCTimeControl {
         const key = `session_${interval}`;
         if (remaining <= interval && !this.sessionWarningsSent.has(key)) {
           this.sessionWarningsSent.add(key);
-          this.showMessage(
+          await this.showMessage(
             `⚠️ ${LOGS.control.toSessionEnd} ${this.logWithTime(remaining)}`,
           );
           logger.info(
@@ -796,7 +804,7 @@ export class PCTimeControl {
 
     if (!this.isLocked && this.isOnBreak) {
       logger.warn(LOGS.control.isOnBreakDebug);
-      this.showMessage(
+      await this.showMessage(
         `${LOGS.control.pauseNotEnd} ${LOGS.control.remain} ${this.logWithTime(remaining)}.`,
         LOGS.control.accessDenied,
       );

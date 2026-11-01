@@ -112,7 +112,7 @@ export class RemoteControlServer {
           break;
         case "END_BREAK":
           if (this.pcControl.isOnBreak) {
-            this.pcControl.endBreak();
+            await this.pcControl.endBreak();
             this.pcControl.isLocked = false;
             response = `OK: ${LOGS.remote.endBreak}\n`;
           } else {
@@ -128,15 +128,15 @@ export class RemoteControlServer {
           response = `OK: ${LOGS.control.resetSessionTime}\n`;
           break;
         case "LOCK":
-          this.pcControl.lockPC();
+          await this.pcControl.lockPC();
           response = `OK: ${LOGS.remote.lock}\n`;
           break;
         case "SHUTDOWN":
-          this.pcControl.shutdownPC();
+          await this.pcControl.shutdownPC();
           response = `OK: ${LOGS.remote.shutdown}\n`;
           break;
         case "SHUTDOWN_NOW":
-          this.pcControl.shutdownPC(10);
+          await this.pcControl.shutdownPC(10);
           response = `OK: ${LOGS.remote.shutdownDelay}\n`;
           break;
         case "CANCEL_SHUTDOWN":
@@ -209,7 +209,7 @@ export class RemoteControlServer {
               response = `ERROR: ${LOGS.remote.invalidTime}\n`;
             } else {
               const seconds = delayedShutdown / 1000;
-              this.pcControl.shutdownPC(seconds);
+              await this.pcControl.shutdownPC(seconds);
               const delayedShutdownTime = new Date(
                 Date.now() + delayedShutdown,
               );
@@ -236,7 +236,7 @@ export class RemoteControlServer {
             }
           } else if (command.startsWith("MESSAGE:")) {
             const msg = command.substring(8);
-            this.pcControl.showMessage(msg);
+            await this.pcControl.showMessage(msg);
             response = `OK: ${LOGS.user.sent.slice(2)}\n`;
           } else if (command.startsWith("SET_LIMIT:")) {
             const minutes = parseInt(command.substring(10));

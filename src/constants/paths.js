@@ -51,10 +51,10 @@ export const PATHS = {
       `shutdown /s /t ${seconds} ${mess ? `/c "${LOGS.base.shutdownTimeout} ${logWithTime(seconds)}"` : ""}`,
     shutdown: (timeout) => `shutdown -h +${timeout}`,
     lockRemoteWin: (lockUser) =>
-      `powershell -NoProfile -Command "schtasks /create /tn '_PCTempLock_' /tr 'rundll32.exe user32.dll,LockWorkStation' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempLock_' *>$null; Start-Sleep 2; schtasks /delete /tn '_PCTempLock_' /f *>$null"`,
+      `powershell -NoProfile -WindowStyle Hidden -Command "schtasks /create /tn '_PCTempLock_' /tr 'rundll32.exe user32.dll,LockWorkStation' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempLock_' *>$null; Start-Sleep 2; schtasks /delete /tn '_PCTempLock_' /f *>$null"`,
     showMessageWin: (message, title, lockUser) => {
       const escaped = message.replace(/'/g, "''");
-      return `powershell -NoProfile -Command "schtasks /create /tn '_PCTempMsg_' /tr 'powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(''${escaped}'', ''${title}'', ''OK'', ''Warning'')\"' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempMsg_' *>$null; Start-Sleep 3; schtasks /delete /tn '_PCTempMsg_' /f *>$null"`;
+      return `powershell -NoProfile -WindowStyle Hidden -Command "schtasks /create /tn '_PCTempMsg_' /tr 'powershell -WindowStyle Hidden -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(''${escaped}'', ''${title}'', ''OK'', ''Warning'')\"' /sc once /st 23:59 /ru ${lockUser} /f *>$null; schtasks /run /tn '_PCTempMsg_' *>$null; Start-Sleep 3; schtasks /delete /tn '_PCTempMsg_' /f *>$null"`;
     },
     scQueryCandidates: (ip) => {
       const candidates = ["pctimecontrol.exe", "pctimecontrol", "PCTimeControl", "pc-time-control"];
