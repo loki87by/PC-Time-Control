@@ -156,7 +156,7 @@ export class PCTimeControl {
       }
       if (state.sessionStartTime) {
         this.sessionStartTime = this.timeHandler(state.sessionStartTime);
-      } else if (this.sessionLimit && !this.isOnBreak) {
+      } else if (this.sessionLimit && !this.isOnBreak && this.currentUser && !this._isSystemUser(this.currentUser)) {
         this.sessionStartTime = new Date();
         this.sessionWarningsSent.clear();
         logger.info(LOGS.control.sessionStartedFirstTime);
@@ -206,7 +206,7 @@ export class PCTimeControl {
       if (err.code !== "ENOENT") {
         logger.error(`${LOGS.control.stateLoadError}: ${err.message}`);
       }
-      if (this.sessionLimit && !this.sessionStartTime && !this.isOnBreak) {
+      if (this.sessionLimit && !this.sessionStartTime && !this.isOnBreak && this.currentUser && !this._isSystemUser(this.currentUser)) {
         this.sessionStartTime = new Date();
         this.sessionWarningsSent.clear();
         logger.info(LOGS.control.sessionCreatedFirstStart);
@@ -336,6 +336,9 @@ export class PCTimeControl {
   async lockPC() {
     try {
       if (process.platform === "win32") {
+        if (this.isLocked) {
+          return;
+        }
         this.isLocked = true;
         const lockUsers = await this._resolveLockUsers();
         logger.info(`${LOGS.control.lock} (users: ${lockUsers.join(", ")})`);
@@ -351,7 +354,7 @@ export class PCTimeControl {
             exec(PATHS.commands.lockWorkStation, { windowsHide: true });
           } else {
             const cmd = PATHS.commands.lockRemoteWin(user);
-            await execPromise(cmd, { windowsHide: true });
+            exec(cmd, { windowsHide: true });
           }
         }
         logger.info(LOGS.control.lock);
@@ -449,12 +452,18 @@ export class PCTimeControl {
     try {
       if (process.platform === "win32") {
         const lockUsers = await this._resolveLockUsers();
+        const isSystemService = this._isSystemUser(this.currentUser);
         for (const user of lockUsers) {
           if (this._isSystemUser(user)) {
             logger.warn(`${LOGS.control.skipSystemUser} ${user}`);
             continue;
           }
-          const cmd = PATHS.commands.showMessageWin(message, title, user);
+          let cmd;
+          if (!isSystemService && user === this.currentUser) {
+            cmd = PATHS.commands.sendMess(message, title, "OK");
+          } else {
+           cmd = PATHS.commands.showMessageWin(message, title, user);
+          }
           exec(cmd, { windowsHide: true });
         }
         return;
@@ -463,7 +472,7 @@ export class PCTimeControl {
       try {
         const escapedMsg = message.replace(/"/g, '\\"').replace(/'/g, "\\'");
         const escapedTitle = title.replace(/"/g, '\\"');
-        await execPromise(PATH.commands.notifySend(escapedMsg, escapedTitle));
+        await execPromise(PATHS.commands.notifySend(escapedMsg, escapedTitle));
       } catch {
         console.error(`\n⚠️ [${title}] ${message}\n`);
       }
@@ -536,18 +545,34 @@ export class PCTimeControl {
       clearInterval(this.monitorInterval);
     }
 
-    if (!this.sessionStartTime && !this.isOnBreak) {
-      this.sessionStartTime = new Date();
-      this.sessionWarningsSent.clear();
-      this.saveState();
-      logger.info(LOGS.control.sessionStartedOnMonitor);
-    }
-
+    let userSeen = false;
     let lockAttemptTicks = 0;
-
     this.monitorInterval = setInterval(async () => {
       try {
         await this.updateActiveUser();
+
+        if (
+          !userSeen &&
+          this.currentUser &&
+          !this._isSystemUser(this.currentUser)
+        ) {
+          userSeen = true;
+
+          if (this._isSystemUser(os.userInfo().username)) {
+            this.startTime = new Date();
+          }
+          if (
+            !this.sessionStartTime &&
+            !this.isOnBreak &&
+            this.stateLoaded
+          ) {
+            this.sessionStartTime = new Date();
+            this.sessionWarningsSent.clear();
+            this.saveState();
+            logger.info(LOGS.control.sessionStartedOnMonitor);
+          }
+        }
+
         const actualLocked = await this.checkIfLocked();
 
         if (this.isLocked && !actualLocked) {
@@ -606,6 +631,7 @@ export class PCTimeControl {
   async checkLimitsAndWarnings() {
     if (!this.shouldMonitorUser() || this.isLocked) return;
     if (this.isOnBreak && this.pendingUnlockAfterBreak) return;
+    if (!this.currentUser || this._isSystemUser(this.currentUser)) return;
 
     const now = new Date();
 
@@ -640,7 +666,12 @@ export class PCTimeControl {
     if (!this.isOnBreak) {
       const sessionBlocked = await this.checkSessionLimit();
       if (sessionBlocked) return;
+    } else if (!this.isLocked) {
+      logger.warn(LOGS.control.isOnBreakDebug);
+      await this.lockPC();
+      return;
     } else {
+      // Если ПК заблокирован и мы на перерыве — просто проверяем конец перерыва
       await this.checkBreakEnd();
     }
     const timeRemaining = this.getTimeRemaining();
@@ -800,15 +831,6 @@ export class PCTimeControl {
         logger.info(LOGS.control.endSleepTime);
       }
       return true;
-    }
-
-    if (!this.isLocked && this.isOnBreak) {
-      logger.warn(LOGS.control.isOnBreakDebug);
-      await this.showMessage(
-        `${LOGS.control.pauseNotEnd} ${LOGS.control.remain} ${this.logWithTime(remaining)}.`,
-        LOGS.control.accessDenied,
-      );
-      await this.lockPC();
     }
     return false;
   }
